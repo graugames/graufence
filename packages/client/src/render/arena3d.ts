@@ -2,9 +2,9 @@
  * The retained 3-D arena.
  *
  * The match engine still owns all gameplay state. This renderer only turns the
- * same small view model into a first-person fencing space: a tracked hip turn
- * becomes a gentle camera turn, the local hands and blade stay visible, and
- * the remote fencer occupies the same piste instead of a second flat panel.
+ * same small view model into a first-person boxing space: a tracked hip turn
+ * becomes a gentle camera turn, both local gloves stay visible, and the remote
+ * boxer occupies the same ring instead of a second flat panel.
  *
  * Geometry and materials are created once. Per-frame work is transforms,
  * visibility and a single WebGL render, which keeps this path comfortable for
@@ -25,10 +25,12 @@ export interface FighterView {
   roundsWon: number;
   connected: boolean;
   staggered: boolean;
+  /** Retained in the protocol for compatibility; boxing uses the wrists. */
   bladeAngle: number;
   guard: HitZone | null;
   hipOffset: number;
   wrist: Vec2;
+  offWrist: Vec2 | null;
   confidence: number;
   lungeProgress: number;
 }
@@ -55,7 +57,6 @@ export interface ArenaView {
 
 const SELF = 0x58e7ff;
 const FOE = 0xff5cc8;
-const WHITE = 0xe8eefc;
 const FLOOR = 0x0a1120;
 const SKY = 0x070b14;
 const GRID = 0x24405a;
@@ -110,9 +111,8 @@ class FencerRig {
   private readonly torso: THREE.Mesh;
   private readonly head: THREE.Mesh;
   private readonly limbs: THREE.Mesh[];
-  private readonly bladeRoot = new THREE.Group();
-  private readonly blade: THREE.Mesh;
-  private readonly bladeTip: THREE.Mesh;
+  private readonly leadFist: THREE.Mesh;
+  private readonly offFist: THREE.Mesh;
   private readonly bodyMaterial: THREE.MeshStandardMaterial;
   private readonly dimMaterial: THREE.MeshStandardMaterial;
   private readonly headPoint = new THREE.Vector3();
@@ -120,6 +120,8 @@ class FencerRig {
   private readonly hip = new THREE.Vector3();
   private readonly elbow = new THREE.Vector3();
   private readonly wrist = new THREE.Vector3();
+  private readonly offElbow = new THREE.Vector3();
+  private readonly offHand = new THREE.Vector3();
   private readonly leftKnee = new THREE.Vector3();
   private readonly rightKnee = new THREE.Vector3();
   private readonly leftFoot = new THREE.Vector3();
@@ -129,26 +131,24 @@ class FencerRig {
     const limbGeometry = new THREE.CylinderGeometry(1, 1, 1, 6);
     const torsoGeometry = new THREE.CylinderGeometry(0.28, 0.36, 0.82, 8);
     const headGeometry = new THREE.SphereGeometry(0.22, 12, 8);
-    const bladeGeometry = new THREE.BoxGeometry(0.045, 0.045, 1.65);
-    const tipGeometry = new THREE.ConeGeometry(0.07, 0.22, 6);
+    const fistGeometry = new THREE.CapsuleGeometry(0.13, 0.12, 4, 8);
 
     this.bodyMaterial = material(color, color, 0.96);
     this.dimMaterial = material(color, 0x000000, 0.26);
     this.torso = new THREE.Mesh(torsoGeometry, this.bodyMaterial);
     this.head = new THREE.Mesh(headGeometry, this.bodyMaterial);
-    this.limbs = Array.from({ length: 6 }, () => new THREE.Mesh(limbGeometry, this.bodyMaterial));
-    this.blade = new THREE.Mesh(bladeGeometry, this.bodyMaterial);
-    this.bladeTip = new THREE.Mesh(tipGeometry, this.bodyMaterial);
-    this.blade.position.z = -0.82;
-    this.bladeTip.position.z = -1.72;
-    this.bladeTip.rotation.x = -Math.PI / 2;
-    this.bladeRoot.add(this.blade, this.bladeTip);
-    this.group.add(this.torso, this.head, ...this.limbs, this.bladeRoot);
+    this.limbs = Array.from({ length: 8 }, () => new THREE.Mesh(limbGeometry, this.bodyMaterial));
+    this.leadFist = new THREE.Mesh(fistGeometry, this.bodyMaterial);
+    this.offFist = new THREE.Mesh(fistGeometry, this.bodyMaterial);
+    this.leadFist.rotation.z = -0.2;
+    this.offFist.rotation.z = 0.2;
+    this.group.add(this.torso, this.head, ...this.limbs, this.leadFist, this.offFist);
+    this.bodyMaterial.emissiveIntensity = 0.42;
   }
 
   update(fighter: FighterView): void {
     const x = fighter.hipOffset * 2.15;
-    this.group.position.set(x, 0, 7.25 - fighter.lungeProgress * 0.5);
+    this.group.position.set(x, 0, 4.6 - fighter.lungeProgress * 0.42);
     this.group.rotation.y = Math.PI + fighter.hipOffset * 0.34;
     this.group.visible = fighter.connected;
 
@@ -171,17 +171,25 @@ class FencerRig {
     placeBetween(this.limbs[0]!, this.shoulder, this.elbow, 0.13);
     placeBetween(this.limbs[1]!, this.elbow, this.wrist, 0.11);
 
+    const offWrist = fighter.offWrist ?? { x: -0.55, y: -0.45 };
+    const offX = clamp((offWrist.x + 0.42) * 1.2, -0.72, 0.18);
+    const offY = clamp(1.34 + (-offWrist.y - 0.6) * 0.52, 0.92, 2.05);
+    this.offElbow.set(offX * 0.48, 1.45 + (offY - 1.45) * 0.42, -0.02);
+    this.offHand.set(offX, offY, -0.16);
+    placeBetween(this.limbs[2]!, this.shoulder, this.offElbow, 0.12);
+    placeBetween(this.limbs[3]!, this.offElbow, this.offHand, 0.1);
+
     this.leftKnee.set(-0.2, 0.52, 0.02);
     this.rightKnee.set(0.2, 0.52, 0.02);
     this.leftFoot.set(-0.26, 0.06, -0.16);
     this.rightFoot.set(0.26, 0.06, 0.22);
-    placeBetween(this.limbs[2]!, this.hip, this.leftKnee, 0.14);
-    placeBetween(this.limbs[3]!, this.leftKnee, this.leftFoot, 0.11);
-    placeBetween(this.limbs[4]!, this.hip, this.rightKnee, 0.14);
-    placeBetween(this.limbs[5]!, this.rightKnee, this.rightFoot, 0.11);
+    placeBetween(this.limbs[4]!, this.hip, this.leftKnee, 0.14);
+    placeBetween(this.limbs[5]!, this.leftKnee, this.leftFoot, 0.11);
+    placeBetween(this.limbs[6]!, this.hip, this.rightKnee, 0.14);
+    placeBetween(this.limbs[7]!, this.rightKnee, this.rightFoot, 0.11);
 
-    this.bladeRoot.position.copy(this.wrist);
-    this.bladeRoot.rotation.set(THREE.MathUtils.degToRad((fighter.bladeAngle - 90) * 0.58), 0, 0);
+    this.leadFist.position.copy(this.wrist);
+    this.offFist.position.copy(this.offHand);
   }
 }
 
@@ -196,21 +204,22 @@ export class Arena3DRenderer {
   private readonly leftForearm: THREE.Mesh;
   private readonly rightHand: THREE.Mesh;
   private readonly leftHand: THREE.Mesh;
-  private readonly localBladeRoot = new THREE.Group();
-  private readonly localBlade: THREE.Mesh;
   private readonly rightHandPos = new THREE.Vector3();
   private readonly leftHandPos = new THREE.Vector3();
   private readonly rightShoulderPos = new THREE.Vector3();
   private readonly leftShoulderPos = new THREE.Vector3();
   private readonly targetRings: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly incomingRings: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
-  private readonly incomingIds = new Array<number>(8).fill(-1);
+  private readonly punchGhosts: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>[] = [];
+  private readonly ghostFrom = new THREE.Vector3();
+  private readonly ghostTo = new THREE.Vector3();
   private readonly hitEffects: HitEffect[] = [];
   private readonly eventLight: THREE.PointLight;
   private flashColor = SELF;
   private flashPulse = 0;
   private shake = 0;
   private cameraYaw = 0;
+  private cameraLean = 0;
   private lastFrameAt = 0;
   private fpsFrames = 0;
   private fpsStartedAt = 0;
@@ -228,7 +237,7 @@ export class Arena3DRenderer {
     key.position.set(-3, 7, 2);
     this.scene.add(key);
     this.eventLight = new THREE.PointLight(SELF, 0, 6, 2);
-    this.eventLight.position.set(0, 1.5, 5.8);
+    this.eventLight.position.set(0, 1.5, 3.5);
     this.scene.add(this.eventLight);
 
     const floor = new THREE.Mesh(
@@ -250,11 +259,69 @@ export class Arena3DRenderer {
     piste.position.set(0, 0.03, 7.4);
     this.scene.add(piste);
 
-    const railMaterial = material(SELF, SELF, 0.32);
-    for (const x of [-1.8, 1.8]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 16), railMaterial);
-      rail.position.set(x, 0.07, 7.4);
-      this.scene.add(rail);
+    // A compact ring gives the fight a readable frame without filling the
+    // scene with expensive detail. The player and opponent stay inside the
+    // same ropes, so a hip dodge reads as a real lateral escape.
+    const ringMat = material(0x16243a, 0x06111d);
+    const ringFloor = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.045, 10.5), ringMat);
+    ringFloor.position.set(0, 0.055, 3.6);
+    this.scene.add(ringFloor);
+
+    const ropeWhite = material(0xd9e5f2, 0x15324b, 0.84);
+    const ropeRed = material(0xb83b62, 0x3d1025, 0.9);
+    const ropeHeights = [0.72, 1.08, 1.44];
+    for (const [level, y] of ropeHeights.entries()) {
+      const ropeMaterial = level === 1 ? ropeRed : ropeWhite;
+      for (const z of [-1.55, 8.7]) {
+        const rope = new THREE.Mesh(new THREE.BoxGeometry(5.95, 0.035, 0.035), ropeMaterial);
+        rope.position.set(0, y, z);
+        this.scene.add(rope);
+      }
+      for (const x of [-2.95, 2.95]) {
+        const rope = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 10.25), ropeMaterial);
+        rope.position.set(x, y, 3.6);
+        this.scene.add(rope);
+      }
+    }
+
+    const postMaterial = material(0x1a2435, 0x07111e);
+    for (const x of [-2.95, 2.95]) {
+      for (const z of [-1.55, 8.7]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.1, 8), postMaterial);
+        post.position.set(x, 1.04, z);
+        this.scene.add(post);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), ropeRed);
+        cap.position.set(x, 2.1, z);
+        this.scene.add(cap);
+      }
+    }
+
+    const backdrop = new THREE.Mesh(
+      new THREE.BoxGeometry(9.5, 4.2, 0.16),
+      material(0x0c1528, 0x02050c),
+    );
+    backdrop.position.set(0, 2.05, 9.35);
+    this.scene.add(backdrop);
+
+    const sign = new THREE.Mesh(
+      new THREE.BoxGeometry(4.8, 0.72, 0.08),
+      material(0x111e34, 0x09233b),
+    );
+    sign.position.set(0, 3.35, 9.2);
+    this.scene.add(sign);
+
+    const audienceMaterials = [
+      material(0x26304a, 0x0b1020),
+      material(0x3d2b52, 0x160c20),
+      material(0x203b4d, 0x071521),
+    ];
+    const audienceHead = new THREE.SphereGeometry(0.14, 8, 6);
+    for (let row = 0; row < 2; row += 1) {
+      for (let i = 0; i < 9; i += 1) {
+        const spectator = new THREE.Mesh(audienceHead, audienceMaterials[(i + row) % audienceMaterials.length]!);
+        spectator.position.set(-3.7 + i * 0.92, 0.34 + row * 0.34, 8.95 + row * 0.22);
+        this.scene.add(spectator);
+      }
     }
 
     const ringGeometry = new THREE.TorusGeometry(0.42, 0.018, 8, 32);
@@ -263,7 +330,7 @@ export class Arena3DRenderer {
         ringGeometry,
         new THREE.MeshBasicMaterial({ color: FOE, transparent: true, opacity: 0.16 }),
       );
-      ring.position.set(0, zoneHeight(zone), 6.88);
+      ring.position.set(0, zoneHeight(zone), 4.22);
       this.targetRings.push(ring);
       this.scene.add(ring);
     }
@@ -275,6 +342,12 @@ export class Arena3DRenderer {
       );
       this.incomingRings.push(ring);
       this.scene.add(ring);
+      const ghost = new THREE.Mesh(
+        new THREE.SphereGeometry(0.13, 8, 6),
+        new THREE.MeshBasicMaterial({ color: SELF, transparent: true, opacity: 0 }),
+      );
+      this.punchGhosts.push(ghost);
+      this.scene.add(ghost);
       const effect = new THREE.Mesh(
         new THREE.TorusGeometry(0.16, 0.035, 8, 20),
         new THREE.MeshBasicMaterial({ color: SELF, transparent: true, opacity: 0 }),
@@ -286,28 +359,20 @@ export class Arena3DRenderer {
 
     this.scene.add(this.opponent.group);
 
-    const armGeometry = new THREE.CylinderGeometry(0.075, 0.1, 1, 8);
-    const gloveGeometry = new THREE.SphereGeometry(0.07, 10, 8);
-    const armMaterial = material(SELF, SELF, 0.95);
+    // Keep the hand silhouette readable without turning the foreground into
+    // two glowing orbs. The cylinders use unit radius because placeBetween
+    // supplies the actual world-space thickness per frame.
+    const armGeometry = new THREE.CylinderGeometry(1, 1, 1, 8);
+    const gloveGeometry = new THREE.CapsuleGeometry(0.065, 0.1, 4, 8);
+    const armMaterial = material(0x17364b, SELF, 0.95);
     this.rightForearm = new THREE.Mesh(armGeometry, armMaterial);
     this.leftForearm = new THREE.Mesh(armGeometry, armMaterial);
     this.rightHand = new THREE.Mesh(gloveGeometry, armMaterial);
     this.leftHand = new THREE.Mesh(gloveGeometry, armMaterial);
+    this.rightHand.rotation.z = -0.26;
+    this.leftHand.rotation.z = 0.26;
     this.selfHands.add(this.rightForearm, this.leftForearm, this.rightHand, this.leftHand);
 
-    this.localBlade = new THREE.Mesh(
-      new THREE.BoxGeometry(0.035, 0.035, 1.7),
-      new THREE.MeshStandardMaterial({
-        color: WHITE,
-        emissive: SELF,
-        emissiveIntensity: 1.25,
-        metalness: 0.75,
-        roughness: 0.25,
-      }),
-    );
-    this.localBlade.position.z = 0.88;
-    this.localBladeRoot.add(this.localBlade);
-    this.selfHands.add(this.localBladeRoot);
     this.camera.add(this.selfHands);
     this.scene.add(this.camera);
     this.camera.position.set(0, 1.68, 0.02);
@@ -328,7 +393,7 @@ export class Arena3DRenderer {
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
       this.renderer.toneMappingExposure = 1.08;
-      this.renderer.domElement.setAttribute('aria-label', '3D fencing arena');
+      this.renderer.domElement.setAttribute('aria-label', 'Grau Battle 3D boxing ring');
       this.renderer.domElement.style.display = 'block';
       this.renderer.domElement.style.width = '100%';
       this.renderer.domElement.style.height = '100%';
@@ -355,7 +420,7 @@ export class Arena3DRenderer {
     effect.life = 1;
     effect.x = onSelf ? 0 : this.opponent.group.position.x;
     effect.y = zoneHeight(zone) + (onSelf ? -0.15 : 0);
-    effect.z = onSelf ? 0.2 : 6.7;
+    effect.z = onSelf ? 0.2 : 4.08;
     effect.mesh.material.color.set(cssColor(outcome === 'parried' || outcome === 'perfect_parry' ? PALETTE.parry : PALETTE.hit, FOE));
     effect.mesh.material.opacity = 0.95;
     effect.mesh.visible = true;
@@ -395,53 +460,74 @@ export class Arena3DRenderer {
   private updateCamera(me: FighterView, dt: number, now: number): void {
     const targetYaw = clamp(me.hipOffset, -0.55, 0.55) * 0.62;
     this.cameraYaw = THREE.MathUtils.damp(this.cameraYaw, targetYaw, 7, dt);
+    const targetLean = clamp(me.hipOffset, -0.55, 0.55) * 0.24;
+    this.cameraLean = THREE.MathUtils.damp(this.cameraLean, targetLean, 9, dt);
     this.shake = Math.max(0, this.shake - dt * 0.9);
     const shakeX = this.shake * Math.sin(now * 0.045);
     const shakeY = this.shake * 0.55 * Math.cos(now * 0.052);
-    this.camera.position.set(shakeX, 1.68 + shakeY, 0.02);
-    this.camera.rotation.set(0, Math.PI + this.cameraYaw, 0);
+    const sideStep = clamp(me.hipOffset, -0.55, 0.55) * 0.28;
+    this.camera.position.set(sideStep + shakeX, 1.68 + shakeY, 0.02);
+    this.camera.rotation.set(0, Math.PI + this.cameraYaw, -this.cameraLean);
   }
 
   private updateHands(me: FighterView): void {
     const handX = clamp((me.wrist.x - 0.42) * 0.42, -0.22, 0.22);
     const handY = clamp(-0.34 - (me.wrist.y + 0.6) * 0.14, -0.62, -0.08);
+    const offWrist = me.offWrist ?? { x: -0.55, y: -0.45 };
+    const offX = clamp((offWrist.x + 0.42) * 0.32, -0.22, 0.14);
+    const offY = clamp(-0.39 - (offWrist.y + 0.45) * 0.14, -0.62, -0.12);
     const right = this.rightHandPos.set(0.25 + handX, handY, -1.12);
-    const left = this.leftHandPos.set(-0.05 + handX * 0.35, handY - 0.06, -1.06);
+    const left = this.leftHandPos.set(-0.1 + offX, offY, -1.04);
     const shoulderRight = this.rightShoulderPos.set(0.11, -0.78, -0.4);
     const shoulderLeft = this.leftShoulderPos.set(-0.11, -0.8, -0.42);
+    const reach = me.lungeProgress * 0.5;
+    right.z -= reach;
+    left.z -= reach * 0.35;
     placeBetween(this.rightForearm, shoulderRight, right, 0.055);
     placeBetween(this.leftForearm, shoulderLeft, left, 0.05);
     this.rightHand.position.copy(right);
     this.leftHand.position.copy(left);
-    this.localBladeRoot.position.copy(right);
-    this.localBladeRoot.rotation.set(THREE.MathUtils.degToRad((me.bladeAngle - 90) * 0.58), 0, 0);
     this.selfHands.position.x = me.hipOffset * 0.12;
     this.selfHands.rotation.y = -this.cameraYaw * 0.18;
   }
 
   private updateTargets(view: ArenaView): void {
     const opponentX = this.opponent.group.position.x;
-    for (const [index, ring] of this.targetRings.entries()) {
+    for (const ring of this.targetRings) {
       ring.position.x = opponentX;
-      ring.position.z = 6.88 - view.them.lungeProgress * 0.25;
+      ring.position.z = 4.22 - view.them.lungeProgress * 0.2;
       ring.material.opacity = view.phase === 'live' ? 0.14 : 0.06;
     }
 
     for (let i = 0; i < this.incomingRings.length; i += 1) {
       const ring = this.incomingRings[i]!;
+      const ghost = this.punchGhosts[i]!;
       const incoming = view.incoming[i];
       if (!incoming) {
-        this.incomingIds[i] = -1;
         ring.material.opacity = 0;
+        ghost.material.opacity = 0;
         continue;
       }
-      this.incomingIds[i] = incoming.id;
       const pulse = 1 + Math.sin(incoming.progress * Math.PI) * 0.12;
-      ring.position.set(opponentX, zoneHeight(incoming.zone), 6.52 - incoming.progress * 0.65);
+      ring.position.set(opponentX, zoneHeight(incoming.zone), 3.92 - incoming.progress * 0.55);
       ring.scale.setScalar(pulse + incoming.progress * 0.3);
       ring.material.color.set(incoming.fromSelf ? SELF : FOE);
       ring.material.opacity = 0.24 + incoming.progress * 0.64;
       ring.rotation.z = incoming.kind === 'slash' ? incoming.progress * Math.PI : 0;
+
+      const targetY = zoneHeight(incoming.zone);
+      if (incoming.fromSelf) {
+        this.ghostFrom.set(0.25 + this.selfHands.position.x, -0.25, 0.38);
+        this.ghostTo.set(opponentX, targetY, 4.08);
+        ghost.material.color.set(SELF);
+      } else {
+        this.ghostFrom.set(opponentX, targetY, 4.08);
+        this.ghostTo.set(0, targetY, 0.28);
+        ghost.material.color.set(FOE);
+      }
+      ghost.position.lerpVectors(this.ghostFrom, this.ghostTo, incoming.progress);
+      ghost.scale.setScalar(0.8 + incoming.progress * 0.45);
+      ghost.material.opacity = incoming.progress < 0.98 ? 0.72 : 0;
     }
   }
 

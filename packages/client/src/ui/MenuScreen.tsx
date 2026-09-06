@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { appStore, useApp } from '../state/app.js';
+import { appStore, clearLog, useApp } from '../state/app.js';
 import { getRuntime } from '../game/runtime.js';
 import { KEYBOARD_HELP } from '../input/keyboard.js';
 
@@ -23,7 +23,7 @@ export function MenuScreen() {
   const [busy, setBusy] = useState(false);
   const runtime = getRuntime();
 
-  const name = playerName.trim() || 'Fencer';
+  const name = playerName.trim() || 'Boxer';
 
   /** Camera mode goes through calibration; keyboard mode skips straight in. */
   async function ensureControls(): Promise<boolean> {
@@ -39,6 +39,7 @@ export function MenuScreen() {
 
   async function createRoom() {
     if (!(await ensureControls())) return;
+    clearLog();
     appStore.set({ mode: 'online', playerName: name });
     runtime.connection.connect();
     runtime.connection.createRoom(name);
@@ -48,6 +49,7 @@ export function MenuScreen() {
     const code = joinCode.trim().toUpperCase();
     if (code.length < 4) return;
     if (!(await ensureControls())) return;
+    clearLog();
     appStore.set({ mode: 'online', playerName: name });
     runtime.connection.connect();
     runtime.connection.joinRoom(code, name);
@@ -62,22 +64,33 @@ export function MenuScreen() {
   return (
     <div className="screen menu">
       <header className="brand">
+        <div className="brand-kicker">
+          <span className="brand-mark">GF</span>
+          <span>GRAU GAMES / LIVE ARENA</span>
+        </div>
         <h1>
-          Grau<span>Fence</span>
+          Grau<span>Battle</span>
         </h1>
         <p className="tagline">
-          1v1 fencing, played with your webcam. Your camera feed never leaves this
-          machine - only your moves are sent.
+          1v1 boxing, played with your webcam. Your camera feed never leaves this
+          machine - only your skeleton moves are sent.
         </p>
       </header>
 
-      <section className="panel">
+      <section className="panel menu-panel">
+        <div className="panel-title">
+          <div>
+            <span className="eyebrow">MATCH SETUP</span>
+            <h2>Choose your corner</h2>
+          </div>
+          <span className="panel-meta">LOCAL INPUT / 60 FPS</span>
+        </div>
         <label className="field">
           <span>Your name</span>
           <input
             value={playerName}
             maxLength={16}
-            placeholder="Fencer"
+            placeholder="Boxer"
             onChange={(e) => appStore.set({ playerName: e.target.value })}
           />
         </label>
@@ -120,7 +133,7 @@ export function MenuScreen() {
 
         <div className="actions">
           <button type="button" className="primary" disabled={busy} onClick={createRoom}>
-            {busy ? 'Starting camera...' : 'Create a room'}
+            {busy ? 'Starting camera...' : 'Create a ring'}
           </button>
           <div className="join-row">
             <input
@@ -138,37 +151,36 @@ export function MenuScreen() {
             </button>
           </div>
           <button type="button" className="ghost" disabled={busy} onClick={practice}>
-            Practice against the bot
+            Spar with the bot
           </button>
         </div>
       </section>
 
-      <details className="panel help">
-        <summary>How to fence</summary>
+      <details className="panel help menu-help">
+        <summary>How to box</summary>
         <ul className="moves">
           <li>
-            <strong>Guard</strong> - hold your blade still on a line. It blocks
-            attacks aimed at that line, and only that line.
+            <strong>Block</strong> - put a glove on the line they are attacking.
+            It reduces damage only where your arm actually is.
           </li>
           <li>
-            <strong>Thrust</strong> - drive your hand forward, fast, with your
-            body behind it.
+            <strong>Straight</strong> - drive a glove forward, fast, with your
+            shoulder and hip behind it.
           </li>
           <li>
-            <strong>Slash</strong> - sweep your hand across your body.
+            <strong>Hook</strong> - sweep your glove across your body.
           </li>
           <li>
-            <strong>Parry</strong> - snap your blade across an incoming attack
-            just before it lands. Time it tightly for a Perfect Parry, which
-            staggers your opponent.
+            <strong>Counter</strong> - meet their punch with a timed cover. A
+            perfect counter briefly staggers them.
           </li>
           <li>
-            <strong>Dodge</strong> - shift your hips sharply to one side. Do not
-            dodge into the line they are attacking.
+            <strong>Slip</strong> - shift your hips sharply to one side. Your
+            character leans the same way, so do not slip into the punch.
           </li>
         </ul>
         <p className="hint">
-          Attacks and dodges cost stamina, and it regenerates only when you stop
+          Punches and slips cost stamina, and it regenerates only when you stop
           spending it. Best of three rounds, 100 health each.
         </p>
         <h4>Keyboard controls</h4>

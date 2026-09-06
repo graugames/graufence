@@ -77,7 +77,7 @@ export function LobbyScreen() {
             <li key={seat} className={player ? (player.ready ? 'ready' : 'waiting') : 'empty'}>
               <span className="dot" aria-hidden="true" />
               <span className="name">
-                {player ? player.name : 'Waiting for a fencer...'}
+                {player ? player.name : 'Waiting for a boxer...'}
                 {isMe && player ? ' (you)' : ''}
               </span>
               <span className="status">
@@ -110,7 +110,7 @@ export function LobbyScreen() {
         {opponent
           ? ready
             ? 'Waiting for your opponent to ready up. The match starts the moment you both are.'
-            : 'Both fencers must be ready to begin.'
+            : 'Both boxers must be ready to begin.'
           : 'The match starts once someone joins and you are both ready.'}
       </p>
     </div>

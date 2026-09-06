@@ -2,7 +2,7 @@
   "name": "graufence",
   "version": "1.0.0",
   "private": true,
-  "description": "GrauFence — 1v1 online virtual fencing played with your webcam. All computer vision runs locally in the browser; only compact actions cross the wire.",
+  "description": "Grau Battle — 1v1 online boxing played with your webcam. All computer vision runs locally in the browser; only compact skeleton moves cross the wire.",
   "license": "MIT",
   "type": "module",
   "engines": {

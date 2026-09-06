@@ -41,6 +41,12 @@ describe('KeyboardController', () => {
     expect(fired.filter((a) => a.kind === 'thrust')).toHaveLength(1);
   });
 
+  it('accepts the browser automation name for the space key', () => {
+    const c = new KeyboardController();
+    const fired = play(c, [{ at: 100, key: 'space' }]);
+    expect(fired.filter((a) => a.kind === 'thrust')).toHaveLength(1);
+  });
+
   it('emits both slash directions', () => {
     const c = new KeyboardController();
     const fired = play(c, [

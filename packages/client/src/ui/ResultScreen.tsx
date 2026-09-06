@@ -59,10 +59,10 @@ export function ResultScreen() {
       </p>
       <p className="tagline">
         {drawn
-          ? 'Neither fencer took two rounds.'
+          ? 'Neither boxer took two rounds.'
           : won
-            ? 'Well fenced.'
-            : 'Watch the line they keep attacking, and guard it.'}
+            ? 'Good work in the ring.'
+            : 'Watch their shoulders, block the line, and slip with your hips.'}
       </p>
 
       {opponentStatus === 'left' && mode === 'online' && (

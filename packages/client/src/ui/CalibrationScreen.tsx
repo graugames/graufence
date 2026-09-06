@@ -105,9 +105,8 @@ export function CalibrationScreen() {
     <div className="screen calibration">
       <h2>Calibrate</h2>
       <p className="tagline">
-        Stand as you would to fence: side on, sword arm forward, hips and
-        shoulders in frame. This is measured once and everything after is in
-        units of your own body.
+        Stand in a boxing stance with both gloves and your hips in frame. This
+        is measured once and everything after mirrors your own body.
       </p>
 
       <div className="calibration-body">
@@ -130,7 +129,7 @@ export function CalibrationScreen() {
           {cameraError && <p className="error">{cameraError.message}</p>}
 
           <fieldset className="field">
-            <legend>Sword hand</legend>
+            <legend>Lead hand</legend>
             <div className="segmented">
               <button
                 type="button"

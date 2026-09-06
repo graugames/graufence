@@ -19,7 +19,7 @@ import { angleDelta, clamp, computeSword, normalizeAngle, sub } from './vector.j
 import { AngleSmoother } from './filter.js';
 import { COOLDOWN, GESTURE, POSE } from './constants.js';
 
-/** The four places a blade can land. */
+/** The four places a punch can land (and a forearm can cover). */
 export type HitZone = 'head' | 'torso' | 'left' | 'right';
 
 export const HIT_ZONES: readonly HitZone[] = ['head', 'torso', 'left', 'right'];
@@ -92,6 +92,29 @@ export const ZONE_CENTER_ANGLE: Record<HitZone, number> = {
   right: 12,
   torso: -90,
 };
+
+/** Maps a normalized hand position to the body line it occupies in boxing. */
+export function boxingZoneForHand(hand: Vec2): HitZone {
+  if (hand.y < -0.72 && Math.abs(hand.x) < 0.95) return 'head';
+  if (hand.y > -0.12 && Math.abs(hand.x) < 0.9) return 'torso';
+  return hand.x < 0 ? 'left' : 'right';
+}
+
+/**
+ * A block is physical: one of the player's forearms has to be parked on a
+ * line. A moving punch does not count as a block, and an arm hanging in the
+ * neutral pocket leaves the body open.
+ */
+export function boxingGuardForPose(frame: PoseFrame, movingSpeed: number): HitZone | null {
+  if (movingSpeed >= 1.2) return null;
+  const hands = [frame.wrist, frame.offWrist].filter((hand): hand is Vec2 => hand !== null);
+  for (const hand of hands) {
+    if (hand.y < -0.72 || hand.y > -0.12 || Math.abs(hand.x) > 0.25) {
+      return boxingZoneForHand(hand);
+    }
+  }
+  return null;
+}
 
 export interface DetectorOptions {
   handedness?: Handedness;
@@ -270,7 +293,7 @@ export class ActionDetector {
     const planar = Math.hypot(vx, vy);
     const total = Math.hypot(planar, Math.abs(forwardSpeed));
 
-    const zone = zoneForAngle(bladeAngle);
+    const punchZone = boxingZoneForHand(frame.wrist);
     const k = this.sensitivity;
 
     // ---- guard -------------------------------------------------------------
@@ -278,12 +301,13 @@ export class ActionDetector {
     // passed through one. Requiring both a steady angle and a short dwell
     // stops a slash's follow-through from counting as a free block.
     let guardZone: HitZone | null = null;
-    if (Math.abs(angularSpeed) <= GESTURE.guardMaxAngularSpeed * k && planar < 1.2 * k) {
-      if (this.guardCandidate !== zone) {
-        this.guardCandidate = zone;
+    const heldBoxingZone = boxingGuardForPose(frame, planar);
+    if (Math.abs(angularSpeed) <= GESTURE.guardMaxAngularSpeed * k && heldBoxingZone !== null) {
+      if (this.guardCandidate !== heldBoxingZone) {
+        this.guardCandidate = heldBoxingZone;
         this.guardSince = t;
       }
-      if (t - this.guardSince >= 90) guardZone = zone;
+      if (t - this.guardSince >= 90) guardZone = heldBoxingZone;
     } else {
       this.guardCandidate = null;
     }
@@ -303,7 +327,7 @@ export class ActionDetector {
       bodyCommit >= GESTURE.thrustBodyAssist * k &&
       this.canFire('thrust', t)
     ) {
-      this.fire({ kind: 'thrust', t, zone, confidence: frame.confidence }, out);
+      this.fire({ kind: 'thrust', t, zone: punchZone, confidence: frame.confidence }, out);
     }
 
     // ---- slash -------------------------------------------------------------
@@ -319,7 +343,7 @@ export class ActionDetector {
         {
           kind: 'slash',
           t,
-          zone,
+          zone: punchZone,
           slash: vx > 0 ? 'lr' : 'rl',
           confidence: frame.confidence,
         },

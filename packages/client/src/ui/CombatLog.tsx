@@ -1,7 +1,7 @@
 /**
  * The combat log.
  *
- * A fencing exchange resolves in about a fifth of a second, and both players
+ * A boxing exchange resolves in about a fifth of a second, and both players
  * routinely have no idea why they just lost 20 health. The log is the answer:
  * it names the outcome, the line, and the number, in the order they happened.
  *

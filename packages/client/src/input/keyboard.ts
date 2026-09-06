@@ -11,8 +11,8 @@
  *  - Players. No camera, a denied permission, or a room too dark to track in
  *    should mean "play with keys", not "cannot play".
  *
- * Crucially it produces the *same* outputs as the camera path - a pose frame, a
- * blade, a guard zone and action events - so everything downstream (prediction,
+ * Crucially it produces the *same* outputs as the camera path - a pose frame,
+ * two gloves, a block zone and action events - so everything downstream (prediction,
  * networking, rendering, the server) is identical in both modes.
  */
 
@@ -40,15 +40,15 @@ export interface KeyboardState {
 
 /** The control scheme, in one place so the help panel cannot drift from it. */
 export const KEYBOARD_HELP: { keys: string; action: string }[] = [
-  { keys: 'A / D', action: 'Swing the blade left / right' },
-  { keys: 'W / S', action: 'Raise / lower the blade' },
-  { keys: 'Mouse', action: 'Aim the blade directly' },
-  { keys: 'Space', action: 'Thrust at the line you are aiming' },
-  { keys: 'J', action: 'Slash left-to-right' },
-  { keys: 'K', action: 'Slash right-to-left' },
-  { keys: 'L / Right click', action: 'Parry' },
-  { keys: 'Q / E', action: 'Dodge left / right' },
-  { keys: 'Hold still', action: 'Guard the line your blade covers' },
+  { keys: 'Mouse', action: 'Aim the lead glove' },
+  { keys: 'Space', action: 'Straight punch' },
+  { keys: 'J', action: 'Left-to-right hook' },
+  { keys: 'K', action: 'Right-to-left hook' },
+  { keys: 'L / Right click', action: 'Cover / block' },
+  { keys: 'Q / E', action: 'Slip left / right with your hips' },
+  { keys: 'A / D', action: 'Turn your guard left / right' },
+  { keys: 'W / S', action: 'Raise / lower your guard' },
+  { keys: 'Hold still', action: 'Keep your gloves on a line to block it' },
 ];
 
 const ANGLE_SPEED_DEG_PER_SEC = 220;
@@ -199,6 +199,7 @@ export class KeyboardController {
 
     switch (key) {
       case ' ':
+      case 'space':
       case 'spacebar':
         fire({ kind: 'thrust', t, zone, confidence: 1 });
         break;

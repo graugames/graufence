@@ -37,13 +37,16 @@ export type MatchPhase =
 
 /** Compact pose readout mirrored to the opponent so their avatar can move. */
 export interface PoseSnapshot {
-  /** Blade angle in degrees. */
+  /** Dominant-hand angle in degrees, retained for the guard model. */
   a: number;
   /** Hip offset from neutral, body units. */
   h: number;
-  /** Wrist position, body units. */
+  /** Dominant wrist position, body units. */
   wx: number;
   wy: number;
+  /** Off-hand position, body units. Optional for old room messages. */
+  owx?: number;
+  owy?: number;
   /** Tracking confidence 0..1. */
   c: number;
 }

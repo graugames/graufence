@@ -1,9 +1,9 @@
-# GrauFence
+# Grau Battle
 
-GrauFence is a playable 1v1 online virtual-fencing game. Players use a webcam
-to control a stylized sword, while all computer vision stays in the browser.
-The server receives compact pose summaries and action intents; it never
-receives webcam frames or video.
+Grau Battle is a playable 1v1 online webcam boxing game. Players throw punches,
+block with either glove, and slip attacks with their hips. The browser mirrors
+the tracked pose into a low-poly ring; the server receives compact pose
+summaries and action intents, never webcam frames or video.
 
 ## Stack
 
@@ -39,34 +39,33 @@ For a camera-free development session, open:
 http://localhost:5174/?keys=1
 ```
 
-This uses the same pose, sword, action, network, and server-authoritative
+This uses the same pose, glove, action, network, and server-authoritative
 combat paths as camera play, but supplies deterministic keyboard input.
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
-| A / D | Swing the blade left or right |
-| W / S | Raise or lower the blade |
-| Mouse | Aim the blade |
-| Space | Thrust at the aimed hit zone |
-| J | Slash left to right |
-| K | Slash right to left |
-| L / right click | Parry |
-| Q / E | Dodge left / right |
-| Hold still | Guard the line covered by the blade |
+| Mouse | Move the lead glove |
+| Space | Straight punch |
+| J / K | Hook left / right |
+| L / right click | Block with the raised glove |
+| Q / E | Slip left / right |
+| A / D | Turn your guard left / right |
+| W / S | Raise or lower the gloves |
+| Hold still | Keep a glove on the punch line |
 | Shift + K | Toggle camera/keyboard mode during development |
 | Backtick | Toggle the debug panel |
 
 Attacks and dodges consume stamina. Matches are best of three rounds, with
-head, torso, left-side, and right-side hit zones. The local practice button
+head, torso, left-side, and right-side hit zones. The local sparring button
 uses a deterministic bot, so combat can be tested without a second client.
 
 ## Camera and tracking
 
 Camera access requires HTTPS or `localhost`. The calibration screen captures a
-neutral stance and the selected sword hand, then normalizes movement by the
-player's own shoulder width. It applies smoothing, confidence gating, gesture
+neutral stance and both gloves, then normalizes movement by the player's own
+shoulder width. It applies smoothing, confidence gating, gesture
 cooldowns, and a keyboard fallback when a camera is unavailable.
 
 MediaPipe's WASM runtime is copied from the installed package during `dev` and
@@ -80,7 +79,7 @@ npm run fetch:model --workspace @graufence/client
 Then set `VITE_POSE_MODEL_URL=/models/pose_landmarker_lite.task` in the client
 environment. The downloaded model is intentionally not committed.
 
-If tracking is unreliable, face the camera with both shoulders, the sword arm,
+If tracking is unreliable, face the camera with both shoulders, both arms,
 and hips visible; step back if the hips are cropped; or use `?keys=1`.
 
 ## Configuration
@@ -140,4 +139,3 @@ Clients send only compact pose summaries and action intent. The server never
 trusts client health, damage, timestamps, or hit results. Malformed frames are
 size-limited and rejected without crashing the process. Real secrets belong in
 environment variables; `.env` files are ignored by Git.
-

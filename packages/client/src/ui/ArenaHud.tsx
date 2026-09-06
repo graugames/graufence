@@ -17,7 +17,7 @@ function FighterCard({ fighter, align }: { fighter: FighterView; align: 'left' |
         <span style={{ width: `${stamina}%` }} />
       </div>
       <div className="arena-fighter-foot">
-        <span>{fighter.staggered ? 'STAGGERED' : fighter.guard ? `GUARD · ${fighter.guard}` : 'READY'}</span>
+        <span>{fighter.staggered ? 'STUNNED' : fighter.guard ? `BLOCK · ${fighter.guard}` : 'OPEN'}</span>
         <span>{fighter.roundsWon} round{fighter.roundsWon === 1 ? '' : 's'}</span>
       </div>
     </section>
@@ -53,7 +53,7 @@ export function ArenaHud({ view }: { view: ArenaView }) {
 
       {(countdown !== null || view.banner) && (
         <div className={`arena-callout ${view.bannerTone}`}>
-          {countdown !== null ? (countdown > 0 ? countdown : 'FENCE!') : view.banner}
+          {countdown !== null ? (countdown > 0 ? countdown : 'FIGHT!') : view.banner}
         </div>
       )}
 

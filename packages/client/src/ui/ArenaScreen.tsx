@@ -60,7 +60,7 @@ export function ArenaScreen() {
 
   return (
     <div className="screen arena">
-      <div ref={surfaceRef} className="arena-surface" aria-label="3D fencing arena" />
+      <div ref={surfaceRef} className="arena-surface" aria-label="Grau Battle 3D boxing ring" />
       <div className="arena-reticle" aria-hidden="true" />
       {hud && <ArenaHud view={hud} />}
 
@@ -71,7 +71,7 @@ export function ArenaScreen() {
               {connection === 'connected' ? `${pingMs} ms` : connection}
             </span>
           )}
-          {mode === 'local' && <span className="pill">practice</span>}
+          {mode === 'local' && <span className="pill">sparring</span>}
           <button type="button" className="pill button" onClick={leave}>
             Leave
           </button>
@@ -84,15 +84,23 @@ export function ArenaScreen() {
         )}
 
         <div className="chrome-bottom">
-          {controls === 'camera' && cameraStatus === 'ready' && (
-            <CameraPreview
-              video={runtime.tracker.video}
-              getLandmarks={getLandmarks}
-              width={200}
-              height={150}
-              className="camera-preview corner"
-            />
-          )}
+          <div className="arena-bottom-left">
+            <div className="arena-quick-controls">
+              <span className="eyebrow">CONTROLS</span>
+              {controls === 'keyboard'
+                ? 'SPACE straight · J/K hook · L block · Q/E slip'
+                : 'Move a glove to punch · hold a glove to block · shift hips to slip'}
+            </div>
+            {controls === 'camera' && cameraStatus === 'ready' && (
+              <CameraPreview
+                video={runtime.tracker.video}
+                getLandmarks={getLandmarks}
+                width={200}
+                height={150}
+                className="camera-preview corner"
+              />
+            )}
+          </div>
           <CombatLog />
         </div>
       </div>

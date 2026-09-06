@@ -1,5 +1,5 @@
 /*
- * GrauFence styling.
+ * Grau Battle styling.
  *
  * Dark, high-contrast, and sized in viewport units so the same layout works on
  * a 13" laptop lid and a desktop monitor. The arena is a canvas that fills the
@@ -21,7 +21,7 @@
   --good: #4ade80;
   --warn: #fbbf24;
   --bad: #ff6b57;
-  --radius: 12px;
+  --radius: 6px;
   color-scheme: dark;
 }
 
@@ -37,9 +37,7 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(1200px 700px at 50% -10%, #10203a 0%, transparent 60%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family:
     system-ui,
@@ -74,13 +72,42 @@ button {
 }
 
 .brand {
-  text-align: center;
-  max-width: 620px;
+  width: min(760px, 100%);
+  text-align: left;
+}
+
+.brand-kicker,
+.eyebrow,
+.panel-meta {
+  color: var(--text-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.brand-kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.brand-mark {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--self);
+  color: var(--self);
+  font-size: 9px;
+  letter-spacing: 0.04em;
 }
 
 .brand h1 {
   margin: 0;
-  font-size: clamp(38px, 7vw, 66px);
+  font-size: clamp(42px, 6vw, 62px);
   letter-spacing: -0.03em;
   font-weight: 800;
 }
@@ -92,8 +119,46 @@ button {
 .tagline {
   color: var(--text-dim);
   max-width: 58ch;
-  text-align: center;
-  margin: 8px auto 0;
+  text-align: left;
+  margin: 8px 0 0;
+}
+
+.menu {
+  align-items: flex-start;
+  width: min(100%, 1040px);
+  margin: 0 auto;
+}
+
+.menu-panel {
+  width: min(760px, 100%);
+  border-radius: 6px;
+  padding: 24px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title h2 {
+  margin: 5px 0 0;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+.panel-meta {
+  padding-top: 3px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.menu-help {
+  width: min(760px, 100%);
+  border-radius: 6px;
 }
 
 .panel {
@@ -133,7 +198,7 @@ input:not([type]),
 .join-row input {
   background: rgba(8, 12, 22, 0.9);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 5px;
   color: var(--text);
   padding: 10px 12px;
   font: inherit;
@@ -175,7 +240,7 @@ input[type='range'] {
 .segmented button {
   flex: 1;
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-dim);
@@ -201,7 +266,7 @@ input[type='range'] {
 
 .actions button {
   padding: 12px 18px;
-  border-radius: 10px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
@@ -237,7 +302,7 @@ input[type='range'] {
 
 .join-row button {
   padding: 10px 20px;
-  border-radius: 10px;
+  border-radius: 5px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
@@ -655,8 +720,7 @@ input[type='range'] {
   transform: translateY(-50%);
 }
 
-/* Chrome floats above the canvas but must never swallow its pointer events -
-   the mouse aims the blade in keyboard mode. */
+/* Chrome floats above the WebGL ring but must never swallow its pointer events. */
 .arena-chrome {
   position: absolute;
   inset: 0;
@@ -684,6 +748,29 @@ input[type='range'] {
   gap: 12px;
   align-items: flex-end;
   justify-content: space-between;
+}
+
+.arena-bottom-left {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.arena-quick-controls {
+  max-width: min(390px, 42vw);
+  padding: 8px 10px;
+  border-left: 2px solid var(--self);
+  background: rgba(7, 11, 20, 0.68);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.arena-quick-controls .eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--self);
+  font-size: 9px;
 }
 
 .pill {
@@ -853,6 +940,15 @@ input[type='range'] {
   .chrome-bottom {
     flex-direction: column-reverse;
     align-items: stretch;
+  }
+
+  .arena-bottom-left {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .arena-quick-controls {
+    max-width: none;
   }
 
   .combat-log {

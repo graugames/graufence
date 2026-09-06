@@ -49,7 +49,7 @@ import type { ArenaView, FighterView, IncomingView } from '../render/arena3d.js'
 import { PALETTE } from '../render/palette.js';
 import { PracticeBot } from './bot.js';
 import type { BotDifficulty } from './bot.js';
-import { appStore, describeCameraError, pushLog } from '../state/app.js';
+import { appStore, clearLog, describeCameraError, pushLog } from '../state/app.js';
 import { createStore } from '../state/store.js';
 
 /** Debug readout, published at a few hertz so the panel does not thrash. */
@@ -95,6 +95,7 @@ const initialHudFighter = (isSelf: boolean): FighterView => ({
   guard: null,
   hipOffset: 0,
   wrist: { x: 0.5, y: -0.6 },
+  offWrist: { x: -0.55, y: -0.45 },
   confidence: 1,
   lungeProgress: 0,
 });
@@ -146,6 +147,7 @@ export class GameRuntime {
   /** Local lunge animation, decayed each frame. */
   private lungeSelf = 0;
   private lungeFoe = 0;
+  private previousFrameAt = 0;
 
   constructor() {
     this.connection.onMessage((m) => this.onServerMessage(m));
@@ -241,18 +243,22 @@ export class GameRuntime {
   /** Starts a practice match against the bot, with no server involved. */
   startPractice(difficulty: BotDifficulty = 'even'): void {
     const now = performance.now();
+    clearLog();
     this.slot = 0;
     this.snapshot = null;
     this.seenEventKeys.clear();
     this.localEngine = new MatchEngine(
-      { id: 'you', name: appStore.get().playerName || 'You' },
-      { id: 'bot', name: 'Practice Bot' },
+      { id: 'you', name: appStore.get().playerName || 'Boxer' },
+      { id: 'bot', name: 'Sparring Bot' },
       now,
     );
     this.bot = new PracticeBot(1, difficulty);
     this.localEngine.setReady(0, true);
     this.localEngine.setReady(1, true);
     this.localEngine.startCountdown(now);
+    this.lungeSelf = 0;
+    this.lungeFoe = 0;
+    this.previousFrameAt = 0;
     appStore.set({
       mode: 'local',
       screen: 'arena',
@@ -278,6 +284,7 @@ export class GameRuntime {
     let bladeAngle: number;
     let guard: HitZone | null;
     let wrist = { x: 0.5, y: -0.6 };
+    let offWrist = { x: -0.55, y: -0.45 };
     let hipOffset = 0;
     let confidence = 1;
 
@@ -287,6 +294,7 @@ export class GameRuntime {
       bladeAngle = ks.bladeAngle;
       guard = ks.guardZone;
       wrist = ks.pose.wrist;
+      offWrist = ks.pose.offWrist ?? offWrist;
       hipOffset = ks.pose.hips.x;
       this.lastPose = ks.pose;
     } else {
@@ -301,6 +309,7 @@ export class GameRuntime {
       bladeAngle = ds.bladeAngle;
       guard = ds.guardZone;
       wrist = pose.wrist;
+      offWrist = pose.offWrist ?? offWrist;
       hipOffset = ds.hipOffset;
       confidence = ds.confidence;
       if (ds.lostTracking !== app.trackingLost) {
@@ -311,7 +320,7 @@ export class GameRuntime {
     if (guard !== app.guard) appStore.set({ guard });
 
     // 2. Publish intent.
-    this.sendPose(bladeAngle, guard, wrist, hipOffset, confidence);
+    this.sendPose(bladeAngle, guard, wrist, offWrist, hipOffset, confidence);
     for (const action of actions) this.dispatch(action, t);
 
     // 3. Advance practice mode (online mode is advanced by the server).
@@ -322,9 +331,11 @@ export class GameRuntime {
     }
 
     // 4. Draw.
-    this.lungeSelf = Math.max(0, this.lungeSelf - 0.04);
-    this.lungeFoe = Math.max(0, this.lungeFoe - 0.04);
-    const view = this.buildView(t, bladeAngle, guard, wrist, hipOffset, confidence);
+    const dt = this.previousFrameAt === 0 ? 1 / 60 : Math.min(0.1, (t - this.previousFrameAt) / 1000);
+    this.previousFrameAt = t;
+    this.lungeSelf = Math.max(0, this.lungeSelf - dt * 1.8);
+    this.lungeFoe = Math.max(0, this.lungeFoe - dt * 1.8);
+    const view = this.buildView(t, bladeAngle, guard, wrist, offWrist, hipOffset, confidence);
     if (this.surface) {
       this.renderer.draw(view, t);
     }
@@ -344,13 +355,22 @@ export class GameRuntime {
     bladeAngle: number,
     guard: HitZone | null,
     wrist: { x: number; y: number },
+    offWrist: { x: number; y: number },
     hipOffset: number,
     confidence: number,
   ): void {
     if (appStore.get().mode !== 'online') return;
-    // Five numbers. This is the entire "video" that reaches the other player.
+    // A compact skeleton readout is the entire "video" that reaches the other player.
     this.connection.pushPose(
-      { a: bladeAngle, h: hipOffset, wx: wrist.x, wy: wrist.y, c: confidence },
+      {
+        a: bladeAngle,
+        h: hipOffset,
+        wx: wrist.x,
+        wy: wrist.y,
+        owx: offWrist.x,
+        owy: offWrist.y,
+        c: confidence,
+      },
       guard,
     );
   }
@@ -405,7 +425,7 @@ export class GameRuntime {
           matchWinner: null,
           opponentStatus: 'here',
         });
-        pushLog(`Joined room ${msg.code} as fencer ${msg.slot + 1}.`, 'info');
+        pushLog(`Joined ring ${msg.code} as boxer ${msg.slot + 1}.`, 'info');
         return;
       }
 
@@ -496,7 +516,7 @@ export class GameRuntime {
           break;
 
         case 'round_start':
-          this.showBanner('FENCE!', 'neutral', 900);
+          this.showBanner('FIGHT!', 'neutral', 900);
           break;
 
         case 'attack_thrown': {
@@ -517,18 +537,18 @@ export class GameRuntime {
           const who = iAmDefender ? 'You' : 'They';
           switch (result.outcome) {
             case 'perfect_parry':
-              this.renderer.addFlash(iAmDefender ? 'PERFECT PARRY' : 'PARRIED', PALETTE.parry);
-              pushLog(`${who} parried perfectly - riposte!`, 'parry');
+              this.renderer.addFlash(iAmDefender ? 'PERFECT COUNTER' : 'COUNTERED', PALETTE.parry);
+              pushLog(`${who} countered perfectly - they are stunned.`, 'parry');
               break;
             case 'parried':
-              pushLog(`${who} parried the ${result.zone} line.`, 'parry');
+              pushLog(`${who} blocked the ${result.zone} punch.`, 'parry');
               break;
             case 'dodged':
-              this.renderer.addFlash('DODGE', PALETTE.dodge);
-              pushLog(`${who} slipped the attack.`, 'dodge');
+              this.renderer.addFlash('SLIP', PALETTE.dodge);
+              pushLog(`${who} slipped the punch.`, 'dodge');
               break;
             case 'guarded':
-              pushLog(`${who} guarded ${result.zone} (-${result.damage}).`, 'guard');
+              pushLog(`${who} blocked ${result.zone} (-${result.damage}).`, 'guard');
               break;
             default:
               pushLog(
@@ -540,7 +560,7 @@ export class GameRuntime {
         }
 
         case 'dodge':
-          if (event.slot !== this.slot) this.renderer.addFlash('THEY DODGE', PALETTE.dodge);
+          if (event.slot !== this.slot) this.renderer.addFlash('THEY SLIP', PALETTE.dodge);
           break;
 
         case 'parry':
@@ -611,6 +631,7 @@ export class GameRuntime {
     bladeAngle: number,
     guard: HitZone | null,
     wrist: { x: number; y: number },
+    offWrist: { x: number; y: number },
     hipOffset: number,
     confidence: number,
   ): ArenaView {
@@ -637,6 +658,7 @@ export class GameRuntime {
       guard: isSelf ? guard : null,
       hipOffset: isSelf ? hipOffset : 0,
       wrist: isSelf ? wrist : { x: 0.5, y: -0.6 },
+      offWrist: isSelf ? offWrist : { x: -0.55, y: -0.45 },
       confidence: isSelf ? confidence : 1,
       lungeProgress: isSelf ? this.lungeSelf : this.lungeFoe,
     });
@@ -672,6 +694,8 @@ export class GameRuntime {
         staggered: t < theirs.staggeredUntil,
         bladeAngle: this.bot?.bladeAngle ?? 90,
         guard: theirs.guardZone,
+        wrist: botWrist(this.bot?.currentGuard ?? 'head'),
+        offWrist: botOffWrist(this.bot?.currentGuard ?? 'head'),
       };
       if (s.phase === 'countdown') countdown = Math.max(0, (s.phaseEndsAt - t) / 1000);
       incoming = s.pending.map((a) => ({
@@ -712,6 +736,10 @@ export class GameRuntime {
         bladeAngle: theirs.pose?.a ?? 90,
         hipOffset: theirs.pose?.h ?? 0,
         wrist: theirs.pose ? { x: theirs.pose.wx, y: theirs.pose.wy } : { x: 0.5, y: -0.6 },
+        offWrist:
+          theirs.pose?.owx !== undefined && theirs.pose.owy !== undefined
+            ? { x: theirs.pose.owx, y: theirs.pose.owy }
+            : { x: -0.55, y: -0.45 },
         confidence: theirs.pose?.c ?? 1,
       };
       if (s.phase === 'countdown') {
@@ -768,6 +796,23 @@ export class GameRuntime {
     });
     appStore.set({ pingMs: Math.round(this.connection.pingMs) });
   }
+}
+
+function botWrist(zone: HitZone): { x: number; y: number } {
+  switch (zone) {
+    case 'head':
+      return { x: 0.18, y: -1.02 };
+    case 'torso':
+      return { x: 0.22, y: -0.08 };
+    case 'left':
+      return { x: -0.58, y: -0.42 };
+    case 'right':
+      return { x: 0.58, y: -0.42 };
+  }
+}
+
+function botOffWrist(zone: HitZone): { x: number; y: number } {
+  return zone === 'head' ? { x: -0.26, y: -0.94 } : { x: -0.3, y: -0.36 };
 }
 
 /** One runtime per page. Created lazily so tests can import this module. */

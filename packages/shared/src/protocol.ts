@@ -364,6 +364,13 @@ export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
       ) {
         return fail('bad_message', 'pose values out of range');
       }
+      const hasOffHand = p['owx'] !== undefined || p['owy'] !== undefined;
+      if (
+        hasOffHand &&
+        (!numberInRange(p['owx'], -8, 8) || !numberInRange(p['owy'], -8, 8))
+      ) {
+        return fail('bad_message', 'off-hand pose values out of range');
+      }
       const guardRaw = data['guard'];
       const guard = guardRaw === null || guardRaw === undefined ? null : guardRaw;
       if (guard !== null && !isZone(guard)) return fail('bad_message', 'invalid guard zone');
@@ -376,6 +383,7 @@ export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
             h: p['h'] as number,
             wx: p['wx'] as number,
             wy: p['wy'] as number,
+            ...(hasOffHand ? { owx: p['owx'] as number, owy: p['owy'] as number } : {}),
             c: p['c'] as number,
           },
           guard,
@@ -434,5 +442,12 @@ export function compactPose(p: PoseSnapshot): PoseSnapshot {
     const f = 10 ** dp;
     return Math.round(n * f) / f;
   };
-  return { a: r(p.a, 1), h: r(p.h), wx: r(p.wx), wy: r(p.wy), c: r(p.c) };
+  return {
+    a: r(p.a, 1),
+    h: r(p.h),
+    wx: r(p.wx),
+    wy: r(p.wy),
+    ...(p.owx !== undefined && p.owy !== undefined ? { owx: r(p.owx), owy: r(p.owy) } : {}),
+    c: r(p.c),
+  };
 }

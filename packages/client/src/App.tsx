@@ -27,7 +27,7 @@ export function App() {
     if (!code) return;
     inviteHandled.current = true;
     const runtime = getRuntime();
-    const name = appStore.get().playerName || 'Fencer';
+    const name = appStore.get().playerName || 'Boxer';
     appStore.set({ mode: 'online', playerName: name });
     runtime.connection.connect();
     runtime.connection.joinRoom(code.toUpperCase(), name);
