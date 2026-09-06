@@ -128,6 +128,10 @@ export class Room {
     // a state of the room, not a half-initialized match.
     if (this.isFull) {
       const [a, b] = this.seats as [Seat, Seat];
+      // A deliberate leave frees a seat while the Room object itself remains
+      // reusable. Rebuild the engine for the new pair so the incoming player
+      // cannot inherit the previous occupant's id, name, ready state, score,
+      // or match phase.
       this.engine = new MatchEngine(
         { id: a.id, name: a.name },
         { id: b.id, name: b.name },

@@ -100,6 +100,10 @@ export class ArenaRenderer {
   fps = 0;
   private fpsAcc = 0;
   private fpsCount = 0;
+  /** Static arena layer, rebuilt only when the canvas backing size changes. */
+  private backgroundCanvas: HTMLCanvasElement | null = null;
+  private backgroundW = 0;
+  private backgroundH = 0;
 
   // ---------------------------------------------------------------- effects
 
@@ -210,6 +214,40 @@ export class ArenaRenderer {
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D, W: number, H: number, now: number): void {
+    const cached = this.ensureBackground(W, H);
+    if (cached) ctx.drawImage(cached, 0, 0);
+    else this.drawStaticBackground(ctx, W, H);
+
+    // Only the breathing haze is animated; keeping it out of the cached layer
+    // preserves the subtle motion without rebuilding the full perspective grid.
+    const horizon = H * 0.52;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 2600);
+    const glow = ctx.createRadialGradient(W / 2, horizon, 0, W / 2, horizon, W * 0.6);
+    glow.addColorStop(0, `rgba(88, 231, 255, ${0.05 + pulse * 0.03})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  private ensureBackground(W: number, H: number): HTMLCanvasElement | null {
+    if (typeof document === 'undefined') return null;
+    if (this.backgroundCanvas && this.backgroundW === W && this.backgroundH === H) {
+      return this.backgroundCanvas;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const background = canvas.getContext('2d', { alpha: false });
+    if (!background) return null;
+    this.drawStaticBackground(background, W, H);
+    this.backgroundCanvas = canvas;
+    this.backgroundW = W;
+    this.backgroundH = H;
+    return canvas;
+  }
+
+  private drawStaticBackground(ctx: CanvasRenderingContext2D, W: number, H: number): void {
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, PALETTE.skyTop);
     sky.addColorStop(1, PALETTE.skyBottom);
@@ -245,13 +283,6 @@ export class ArenaRenderer {
     ctx.lineTo(W * 0.94, H * 0.78);
     ctx.stroke();
 
-    // A slow breathing haze, so a paused screen is not perfectly static.
-    const pulse = 0.5 + 0.5 * Math.sin(now / 2600);
-    const glow = ctx.createRadialGradient(W / 2, horizon, 0, W / 2, horizon, W * 0.6);
-    glow.addColorStop(0, `rgba(88, 231, 255, ${0.05 + pulse * 0.03})`);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, W, H);
   }
 
   /**

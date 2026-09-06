@@ -84,8 +84,12 @@ export class RoomManager {
     return room;
   }
 
-  attach(code: string, slot: Slot, sink: Sink): void {
-    this.rooms.get(code)?.occupants.set(slot, { sink, slot });
+  attach(code: string, slot: Slot, sink: Sink): Sink | null {
+    const entry = this.rooms.get(code);
+    if (!entry) return null;
+    const previous = entry.occupants.get(slot)?.sink ?? null;
+    entry.occupants.set(slot, { sink, slot });
+    return previous;
   }
 
   detach(code: string, slot: Slot): void {
@@ -96,10 +100,10 @@ export class RoomManager {
 
   // ------------------------------------------------------------- broadcasting
 
-  send(sink: Sink, message: ServerMessage): void {
+  private sendEncoded(sink: Sink, data: string): void {
     if (!sink.open) return;
     try {
-      sink.send(JSON.stringify(message));
+      sink.send(data);
     } catch (err) {
       // A socket that fails mid-write is already gone; the close handler will
       // clean up the seat. Never let it take the tick loop down with it.
@@ -107,10 +111,18 @@ export class RoomManager {
     }
   }
 
+  send(sink: Sink, message: ServerMessage): void {
+    this.sendEncoded(sink, JSON.stringify(message));
+  }
+
   broadcast(code: string, message: ServerMessage): void {
     const entry = this.rooms.get(code);
     if (!entry) return;
-    for (const occ of entry.occupants.values()) this.send(occ.sink, message);
+    // Encode once per broadcast, not once per player. State snapshots are the
+    // hottest server message and every room has the same payload for both
+    // occupants.
+    const data = JSON.stringify(message);
+    for (const occ of entry.occupants.values()) this.sendEncoded(occ.sink, data);
   }
 
   sendTo(code: string, slot: Slot, message: ServerMessage): void {
@@ -131,9 +143,21 @@ export class RoomManager {
 
   /** Pushes the authoritative snapshot, skipping rooms that have not changed. */
   broadcastState(code: string, force = false): void {
+    this.broadcastStateAt(code, force, this.now());
+  }
+
+  /** Broadcasts one snapshot per room, regardless of how many sockets it has. */
+  broadcastStates(): void {
+    const now = this.now();
+    for (const code of this.rooms.keys()) this.broadcastStateAt(code, false, now);
+  }
+
+  private broadcastStateAt(code: string, force: boolean, now: number): void {
     const entry = this.rooms.get(code);
-    if (!entry) return;
-    const state = entry.room.stateMessage(this.now());
+    // Disconnected seats remain in the room for reconnect grace, but there is
+    // nobody to receive a snapshot while the occupant map is empty.
+    if (!entry || entry.occupants.size === 0) return;
+    const state = entry.room.stateMessage(now);
     if (!state) return;
     // During a live round the clock itself is state (health bars, timers), so
     // updates always go out. Between rounds, an unchanged seq means nothing to
@@ -226,8 +250,9 @@ export class RoomManager {
         });
       }
     }
-    // Any event changed the world; push the snapshot that goes with it.
-    this.broadcastState(code, true);
+    // Rejected actions do not change the world. Do not force an identical
+    // snapshot onto both clients just because one player pressed too early.
+    if (shared.length > 0) this.broadcastState(code, true);
   }
 
   /**
@@ -239,7 +264,10 @@ export class RoomManager {
     const engine = entry?.room.engine;
     if (!entry || !engine) return false;
     const phase = engine.state.phase;
-    if (phase !== 'lobby' && phase !== 'match_over') return false;
+    // A finished match must go through the explicit rematch handshake. Starting
+    // directly from match_over would keep the old score and matchWinner while
+    // resetting only the round health, producing an impossible hybrid match.
+    if (phase !== 'lobby') return false;
     if (!entry.room.bothReady()) return false;
     this.emit(code, engine.startCountdown(this.now()));
     return true;
@@ -264,9 +292,10 @@ export class RoomManager {
    * way the seat is released immediately rather than held for reconnection,
    * because they told us they were going.
    */
-  leave(code: string, slot: Slot): void {
+  leave(code: string, slot: Slot, owner?: Sink): void {
     const entry = this.rooms.get(code);
     if (!entry) return;
+    if (owner && entry.occupants.get(slot)?.sink !== owner) return;
     const now = this.now();
     const engine = entry.room.engine;
     const inMatch =
@@ -279,9 +308,10 @@ export class RoomManager {
   }
 
   /** A socket dropped without saying goodbye. Hold the seat for a while. */
-  dropped(code: string, slot: Slot): void {
+  dropped(code: string, slot: Slot, owner?: Sink): void {
     const entry = this.rooms.get(code);
     if (!entry) return;
+    if (owner && entry.occupants.get(slot)?.sink !== owner) return;
     const now = this.now();
     entry.room.markDisconnected(slot, now);
     this.detach(code, slot);

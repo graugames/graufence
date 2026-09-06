@@ -110,6 +110,13 @@ describe('broadcasting', () => {
     expect(b.ofType('state')).toHaveLength(1);
   });
 
+  it('broadcasts one snapshot per room, not once per occupant', () => {
+    const { manager, room, a, b } = twoPlayers();
+    manager.broadcastStates();
+    expect(a.ofType('state')).toHaveLength(1);
+    expect(b.ofType('state')).toHaveLength(1);
+  });
+
   it('never puts a seat token on the wire in a broadcast', () => {
     const { manager, room, a } = twoPlayers();
     manager.broadcastLobby(room.code);
@@ -147,15 +154,35 @@ describe('broadcasting', () => {
     expect(b.ofType('state')).toHaveLength(1);
   });
 
+  it('does not let a superseded socket drop the replacement player', () => {
+    const { manager, room, a, b } = twoPlayers();
+    const replacement = new FakeSink();
+    expect(manager.attach(room.code, 0, replacement)).toBe(a);
+
+    manager.dropped(room.code, 0, a);
+    expect(room.seats[0]!.connected).toBe(true);
+    expect(manager.stats().sockets).toBe(2);
+
+    manager.dropped(room.code, 0, replacement);
+    expect(room.seats[0]!.connected).toBe(false);
+    expect(b.ofType('opponent_status').at(-1)).toMatchObject({
+      slot: 0,
+      status: 'disconnected',
+    });
+  });
+
   it('keeps a rejection private to the player who caused it', () => {
     // Otherwise a rejection doubles as a probe: throw illegal actions and read
     // the opponent's timing off the replies.
     const { manager, room, a, b } = twoPlayers();
+    manager.broadcastState(room.code, true);
     a.clear();
     b.clear();
     manager.emit(room.code, [{ type: 'rejected', slot: 0, kind: 'thrust', reason: 'cooldown' }]);
     expect(a.ofType('events')).toHaveLength(1);
     expect(b.ofType('events')).toHaveLength(0);
+    expect(a.ofType('state')).toHaveLength(0);
+    expect(b.ofType('state')).toHaveLength(0);
   });
 });
 
@@ -174,6 +201,15 @@ describe('starting a match', () => {
     room.setReady(0, true, 0);
     room.setReady(1, true, 0);
     manager.maybeStart(room.code);
+    expect(manager.maybeStart(room.code)).toBe(false);
+  });
+
+  it('does not start a fresh match directly from match over', () => {
+    const { manager, room } = twoPlayers();
+    const engine = room.engine!;
+    engine.state.phase = 'match_over';
+    engine.state.players[0].ready = true;
+    engine.state.players[1].ready = true;
     expect(manager.maybeStart(room.code)).toBe(false);
   });
 

@@ -5,7 +5,7 @@
  * with one `screen` field, and a switch is the honest expression of that.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { appStore, useApp } from './state/app.js';
 import { getRuntime } from './game/runtime.js';
 import { MenuScreen } from './ui/MenuScreen.js';
@@ -16,13 +16,16 @@ import { ResultScreen } from './ui/ResultScreen.js';
 
 export function App() {
   const screen = useApp((s) => s.screen);
+  const inviteHandled = useRef(false);
 
   // ?room=CODE is the invite link: land straight in the room instead of making
   // the second player retype a code they were just sent.
   useEffect(() => {
+    if (inviteHandled.current) return;
     const params = new URLSearchParams(window.location.search);
     const code = params.get('room');
     if (!code) return;
+    inviteHandled.current = true;
     const runtime = getRuntime();
     const name = appStore.get().playerName || 'Fencer';
     appStore.set({ mode: 'online', playerName: name });

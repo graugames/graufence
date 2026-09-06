@@ -84,6 +84,25 @@ describe('joining', () => {
     const c = r.join('Cy', 200);
     expect(c.ok && c.seat.slot).toBe(1);
   });
+
+  it('rebuilds the match when a freed slot gets a new player', () => {
+    const r = room();
+    r.join('Ada', 0);
+    const b = r.join('Bo', 0);
+    expect(b.ok).toBe(true);
+    r.engine!.state.players[0].roundsWon = 1;
+    const oldEngine = r.engine;
+    r.leave(1, 100);
+    expect(r.engine).toBe(oldEngine);
+
+    const c = r.join('Cy', 200);
+    expect(c.ok).toBe(true);
+    expect(r.engine).not.toBe(oldEngine);
+    expect(r.engine!.state.players[0].name).toBe('Ada');
+    expect(r.engine!.state.players[1].name).toBe('Cy');
+    expect(r.engine!.state.players[0].roundsWon).toBe(0);
+    expect(r.engine!.state.phase).toBe('lobby');
+  });
 });
 
 describe('disconnect and reconnect', () => {

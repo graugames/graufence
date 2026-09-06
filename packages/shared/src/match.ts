@@ -181,12 +181,17 @@ export class MatchEngine {
   // ------------------------------------------------------------------ lobby
 
   setReady(slot: Slot, ready: boolean): void {
-    this.player(slot).ready = ready;
+    if (this.state.phase !== 'lobby') return;
+    const player = this.player(slot);
+    if (player.ready === ready) return;
+    player.ready = ready;
     this.bump();
   }
 
   setConnected(slot: Slot, connected: boolean): void {
-    this.player(slot).connected = connected;
+    const player = this.player(slot);
+    if (player.connected === connected) return;
+    player.connected = connected;
     this.bump();
   }
 

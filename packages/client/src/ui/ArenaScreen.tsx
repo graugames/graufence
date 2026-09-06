@@ -8,7 +8,7 @@
  * pill, the camera thumbnail, the debug panel.
  */
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { appStore, useApp } from '../state/app.js';
 import { getRuntime } from '../game/runtime.js';
 import { CameraPreview } from './CameraPreview.js';
@@ -25,6 +25,7 @@ export function ArenaScreen() {
   const connection = useApp((s) => s.connection);
   const mode = useApp((s) => s.mode);
   const opponentStatus = useApp((s) => s.opponentStatus);
+  const getLandmarks = useCallback(() => runtime.landmarks, [runtime]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -81,7 +82,7 @@ export function ArenaScreen() {
           {controls === 'camera' && cameraStatus === 'ready' && (
             <CameraPreview
               video={runtime.tracker.video}
-              getLandmarks={() => runtime.landmarks}
+              getLandmarks={getLandmarks}
               width={200}
               height={150}
               className="camera-preview corner"

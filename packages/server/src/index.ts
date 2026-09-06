@@ -72,8 +72,8 @@ function fail(session: Session, code: ErrorCode, message: string, fatal = false)
 function releaseSeat(session: Session, deliberate: boolean): void {
   const { code, slot } = session;
   if (code === null || slot === null) return;
-  if (deliberate) rooms.leave(code, slot);
-  else rooms.dropped(code, slot);
+  if (deliberate) rooms.leave(code, slot, session.sink);
+  else rooms.dropped(code, slot, session.sink);
   session.code = null;
   session.slot = null;
 }
@@ -153,7 +153,14 @@ function handleMessage(session: Session, raw: RawData): void {
       }
       session.code = msg.code;
       session.slot = result.seat.slot;
-      rooms.attach(msg.code, result.seat.slot, session.sink);
+      const replaced = rooms.attach(msg.code, result.seat.slot, session.sink);
+      if (replaced && replaced !== session.sink) {
+        try {
+          replaced.close(4001, 'seat reclaimed by reconnect');
+        } catch {
+          // The superseded socket may already be closing.
+        }
+      }
       reply(session, {
         type: 'joined',
         v: PROTOCOL_VERSION,
@@ -350,9 +357,7 @@ wss.on('connection', (socket, req) => {
 // heartbeat.
 const tickTimer = setInterval(() => rooms.tickAll(), TICK_INTERVAL_MS);
 const stateTimer = setInterval(() => {
-  for (const session of sessions) {
-    if (session.code) rooms.broadcastState(session.code);
-  }
+  rooms.broadcastStates();
 }, STATE_INTERVAL_MS);
 
 const heartbeat = setInterval(() => {
