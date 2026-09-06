@@ -1,0 +1,656 @@
+/*
+ * GrauFence styling.
+ *
+ * Dark, high-contrast, and sized in viewport units so the same layout works on
+ * a 13" laptop lid and a desktop monitor. The arena is a canvas that fills the
+ * viewport; everything else is chrome floating over it or a centred panel.
+ *
+ * Cyan is always the local player and magenta is always the opponent - the same
+ * rule the renderer follows (see render/palette.ts), so the HUD and the figures
+ * agree without the player having to think about it.
+ */
+
+:root {
+  --bg: #070b14;
+  --bg-panel: rgba(14, 21, 36, 0.92);
+  --border: rgba(120, 160, 220, 0.18);
+  --self: #58e7ff;
+  --foe: #ff5cc8;
+  --text: #e8eefc;
+  --text-dim: rgba(232, 238, 252, 0.6);
+  --good: #4ade80;
+  --warn: #fbbf24;
+  --bad: #ff6b57;
+  --radius: 12px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(1200px 700px at 50% -10%, #10203a 0%, transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ screens */
+
+.screen {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: clamp(16px, 4vh, 44px) 20px 40px;
+}
+
+.screen > h1,
+.screen > h2 {
+  margin: 0;
+}
+
+.brand {
+  text-align: center;
+  max-width: 620px;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: clamp(38px, 7vw, 66px);
+  letter-spacing: -0.03em;
+  font-weight: 800;
+}
+
+.brand h1 span {
+  color: var(--self);
+}
+
+.tagline {
+  color: var(--text-dim);
+  max-width: 58ch;
+  text-align: center;
+  margin: 8px auto 0;
+}
+
+.panel {
+  width: min(560px, 100%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ------------------------------------------------------------------- fields */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.field > span:first-child,
+.field legend {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0;
+}
+
+input[type='text'],
+input:not([type]),
+.join-row input {
+  background: rgba(8, 12, 22, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font: inherit;
+  width: 100%;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--self);
+  outline-offset: 2px;
+}
+
+input[type='range'] {
+  accent-color: var(--self);
+  width: 100%;
+}
+
+.checkbox {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.segmented {
+  display: flex;
+  gap: 6px;
+}
+
+.segmented button {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+}
+
+.segmented button.active {
+  background: rgba(88, 231, 255, 0.14);
+  border-color: var(--self);
+  color: var(--self);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.actions.inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.actions button {
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.actions button.primary {
+  background: var(--self);
+  border-color: var(--self);
+  color: #04121a;
+}
+
+.actions button.ghost {
+  background: transparent;
+}
+
+.actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.join-row {
+  display: flex;
+  gap: 8px;
+}
+
+.join-row input {
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.join-row button {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------- status text */
+
+.status {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.status.good {
+  color: var(--good);
+}
+
+.status.warn {
+  color: var(--warn);
+}
+
+.error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 107, 87, 0.12);
+  border: 1px solid rgba(255, 107, 87, 0.4);
+  color: #ffb4a8;
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------- help */
+
+.help summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.moves {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.moves strong {
+  color: var(--text);
+}
+
+.keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.keys th {
+  text-align: left;
+  padding: 4px 12px 4px 0;
+  color: var(--self);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+}
+
+.keys td {
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+
+/* -------------------------------------------------------------- calibration */
+
+.calibration-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  justify-content: center;
+  width: min(880px, 100%);
+}
+
+.preview-wrap {
+  position: relative;
+}
+
+.camera-preview {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #05080f;
+  display: block;
+  max-width: 100%;
+}
+
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 76px;
+  font-weight: 800;
+  color: var(--self);
+  background: rgba(5, 9, 18, 0.45);
+  border-radius: var(--radius);
+}
+
+.calibration-controls {
+  flex: 1 1 300px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* -------------------------------------------------------------------- lobby */
+
+.room-code {
+  font-size: clamp(48px, 12vw, 96px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--self);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-panel);
+}
+
+.players .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex: none;
+}
+
+.players li.ready .dot {
+  background: var(--good);
+}
+
+.players li.waiting .dot {
+  background: var(--warn);
+}
+
+.players li.empty {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.players .name {
+  flex: 1;
+}
+
+.players .status {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* -------------------------------------------------------------------- arena */
+
+.screen.arena {
+  padding: 0;
+  gap: 0;
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+
+.arena-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Chrome floats above the canvas but must never swallow its pointer events -
+   the mouse aims the blade in keyboard mode. */
+.arena-chrome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+  pointer-events: none;
+}
+
+.arena-chrome button,
+.arena-chrome .pill {
+  pointer-events: auto;
+}
+
+.chrome-top {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.chrome-bottom {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.pill {
+  background: rgba(10, 16, 30, 0.85);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.pill.ping.good {
+  color: var(--good);
+}
+
+.pill.ping.ok {
+  color: var(--warn);
+}
+
+.pill.ping.bad {
+  color: var(--bad);
+}
+
+.pill.button {
+  color: var(--text);
+}
+
+.banner.warn {
+  align-self: center;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.camera-preview.corner {
+  width: clamp(120px, 18vw, 200px);
+  height: auto;
+  aspect-ratio: 4 / 3;
+  opacity: 0.9;
+}
+
+.combat-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: min(46ch, 46vw);
+  text-align: right;
+  margin-left: auto;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+
+.combat-log li {
+  background: rgba(8, 12, 22, 0.62);
+  border-radius: 6px;
+  padding: 3px 8px;
+  color: var(--text-dim);
+}
+
+.log-hit {
+  color: var(--bad);
+}
+
+.log-parry {
+  color: #ffe066;
+}
+
+.log-dodge {
+  color: #7dd3fc;
+}
+
+.log-guard {
+  color: #cbd5e1;
+}
+
+.log-bad {
+  color: var(--warn);
+}
+
+/* --------------------------------------------------------------------- debug */
+
+.debug-panel {
+  position: absolute;
+  top: 56px;
+  left: 14px;
+  width: 210px;
+  background: rgba(6, 10, 20, 0.94);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.debug-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--self);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.debug-panel header button {
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.debug-row b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.debug-row.warn b {
+  color: var(--warn);
+}
+
+/* ------------------------------------------------------------------- result */
+
+.screen.result {
+  justify-content: center;
+  text-align: center;
+}
+
+.screen.result h1 {
+  font-size: clamp(44px, 10vw, 86px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.screen.result.win h1 {
+  color: var(--self);
+}
+
+.screen.result.lose h1 {
+  color: var(--bad);
+}
+
+.screen.result .score {
+  font-size: 34px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ small screens */
+
+@media (max-width: 720px) {
+  .chrome-bottom {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .combat-log {
+    max-width: 100%;
+    text-align: left;
+    margin-left: 0;
+  }
+
+  .camera-preview.corner {
+    align-self: flex-end;
+  }
+
+  .debug-panel {
+    width: 170px;
+    font-size: 10.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

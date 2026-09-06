@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+coverage/
+packages/client/public/mediapipe/wasm/
+*.tsbuildinfo
+
+# Environment — never commit real values, only .env.example
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
