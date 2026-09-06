@@ -84,6 +84,8 @@ export interface PoseFrame {
   shoulder: Vec2;
   /** Off hand, when visible - used only for the avatar's second arm. */
   offWrist: Vec2 | null;
+  /** Off elbow, when visible - keeps the remote arm's bend faithful. */
+  offElbow: Vec2 | null;
 
   /** Body reference points. */
   hips: Vec2;
@@ -115,6 +117,7 @@ export function emptyPoseFrame(t: number, handedness: Handedness): PoseFrame {
     elbow: { x: 0, y: 0 },
     shoulder: { x: 0, y: 0 },
     offWrist: null,
+    offElbow: null,
     hips: { x: 0, y: 0 },
     shoulders: { x: 0, y: -1 },
     head: { x: 0, y: -1.4 },
@@ -248,6 +251,7 @@ export class PoseNormalizer {
     const shoulderL = landmarks[right ? LM.rightShoulder : LM.leftShoulder];
     const otherShoulderL = landmarks[right ? LM.leftShoulder : LM.rightShoulder];
     const offWristL = landmarks[right ? LM.leftWrist : LM.rightWrist];
+    const offElbowL = landmarks[right ? LM.leftElbow : LM.rightElbow];
     const leftHipL = landmarks[LM.leftHip];
     const rightHipL = landmarks[LM.rightHip];
     const noseL = landmarks[LM.nose];
@@ -304,6 +308,10 @@ export class PoseNormalizer {
       offWristL && vis(offWristL) >= POSE.minLandmarkConfidence
         ? this.smooth('offWrist', this.toBody(pt(offWristL)), t)
         : null;
+    const offElbow =
+      offElbowL && vis(offElbowL) >= POSE.minLandmarkConfidence
+        ? this.smooth('offElbow', this.toBody(pt(offElbowL)), t)
+        : null;
 
     const head =
       noseL && vis(noseL) >= POSE.minLandmarkConfidence
@@ -327,6 +335,7 @@ export class PoseNormalizer {
       elbow,
       shoulder,
       offWrist,
+      offElbow,
       hips,
       shoulders,
       head,

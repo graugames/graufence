@@ -134,6 +134,7 @@ describe('emptyPoseFrame', () => {
     expect(f.confidence).toBe(0);
     expect(f.handedness).toBe('left');
     expect(f.offWrist).toBeNull();
+    expect(f.offElbow).toBeNull();
     expect(Number.isFinite(f.wrist.x)).toBe(true);
   });
 });

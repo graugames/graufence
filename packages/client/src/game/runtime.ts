@@ -13,7 +13,7 @@
  *
  * Two things are worth stating plainly because they shape the whole design:
  *
- *  - **Nothing here re-renders React at frame rate.** Health, stamina, blade
+ *  - **Nothing here re-renders React at frame rate.** Health, stamina, gloves
  *    angle and every effect go straight to WebGL. React only receives the
  *    low-frequency HUD snapshot and screen changes (see ../state/app.ts).
  *  - **Local feedback is a lie, and knowingly so.** When you throw an attack
@@ -40,6 +40,7 @@ import type {
   ServerMessage,
   Slot,
   StateMessage,
+  Vec2,
 } from '@graufence/shared';
 import { PoseTracker } from '../cv/poseTracker.js';
 import { KeyboardController } from '../input/keyboard.js';
@@ -95,7 +96,9 @@ const initialHudFighter = (isSelf: boolean): FighterView => ({
   guard: null,
   hipOffset: 0,
   wrist: { x: 0.5, y: -0.6 },
+  elbow: { x: 0.42, y: -0.95 },
   offWrist: { x: -0.55, y: -0.45 },
+  offElbow: { x: -0.5, y: -0.7 },
   confidence: 1,
   lungeProgress: 0,
 });
@@ -284,7 +287,9 @@ export class GameRuntime {
     let bladeAngle: number;
     let guard: HitZone | null;
     let wrist = { x: 0.5, y: -0.6 };
+    let elbow = { x: 0.42, y: -0.95 };
     let offWrist = { x: -0.55, y: -0.45 };
+    let offElbow = { x: -0.5, y: -0.7 };
     let hipOffset = 0;
     let confidence = 1;
 
@@ -294,7 +299,9 @@ export class GameRuntime {
       bladeAngle = ks.bladeAngle;
       guard = ks.guardZone;
       wrist = ks.pose.wrist;
+      elbow = ks.pose.elbow;
       offWrist = ks.pose.offWrist ?? offWrist;
+      offElbow = ks.pose.offElbow ?? offElbow;
       hipOffset = ks.pose.hips.x;
       this.lastPose = ks.pose;
     } else {
@@ -309,7 +316,9 @@ export class GameRuntime {
       bladeAngle = ds.bladeAngle;
       guard = ds.guardZone;
       wrist = pose.wrist;
+      elbow = pose.elbow;
       offWrist = pose.offWrist ?? offWrist;
+      offElbow = pose.offElbow ?? offElbow;
       hipOffset = ds.hipOffset;
       confidence = ds.confidence;
       if (ds.lostTracking !== app.trackingLost) {
@@ -320,7 +329,7 @@ export class GameRuntime {
     if (guard !== app.guard) appStore.set({ guard });
 
     // 2. Publish intent.
-    this.sendPose(bladeAngle, guard, wrist, offWrist, hipOffset, confidence);
+    this.sendPose(bladeAngle, guard, wrist, elbow, offWrist, offElbow, hipOffset, confidence);
     for (const action of actions) this.dispatch(action, t);
 
     // 3. Advance practice mode (online mode is advanced by the server).
@@ -335,7 +344,17 @@ export class GameRuntime {
     this.previousFrameAt = t;
     this.lungeSelf = Math.max(0, this.lungeSelf - dt * 1.8);
     this.lungeFoe = Math.max(0, this.lungeFoe - dt * 1.8);
-    const view = this.buildView(t, bladeAngle, guard, wrist, offWrist, hipOffset, confidence);
+    const view = this.buildView(
+      t,
+      bladeAngle,
+      guard,
+      wrist,
+      elbow,
+      offWrist,
+      offElbow,
+      hipOffset,
+      confidence,
+    );
     if (this.surface) {
       this.renderer.draw(view, t);
     }
@@ -354,8 +373,10 @@ export class GameRuntime {
   private sendPose(
     bladeAngle: number,
     guard: HitZone | null,
-    wrist: { x: number; y: number },
-    offWrist: { x: number; y: number },
+    wrist: Vec2,
+    elbow: Vec2,
+    offWrist: Vec2,
+    offElbow: Vec2,
     hipOffset: number,
     confidence: number,
   ): void {
@@ -367,8 +388,12 @@ export class GameRuntime {
         h: hipOffset,
         wx: wrist.x,
         wy: wrist.y,
+        ex: elbow.x,
+        ey: elbow.y,
         owx: offWrist.x,
         owy: offWrist.y,
+        oex: offElbow.x,
+        oey: offElbow.y,
         c: confidence,
       },
       guard,
@@ -630,8 +655,10 @@ export class GameRuntime {
     t: number,
     bladeAngle: number,
     guard: HitZone | null,
-    wrist: { x: number; y: number },
-    offWrist: { x: number; y: number },
+    wrist: Vec2,
+    elbow: Vec2,
+    offWrist: Vec2,
+    offElbow: Vec2,
     hipOffset: number,
     confidence: number,
   ): ArenaView {
@@ -658,7 +685,9 @@ export class GameRuntime {
       guard: isSelf ? guard : null,
       hipOffset: isSelf ? hipOffset : 0,
       wrist: isSelf ? wrist : { x: 0.5, y: -0.6 },
+      elbow: isSelf ? elbow : { x: 0.42, y: -0.95 },
       offWrist: isSelf ? offWrist : { x: -0.55, y: -0.45 },
+      offElbow: isSelf ? offElbow : { x: -0.5, y: -0.7 },
       confidence: isSelf ? confidence : 1,
       lungeProgress: isSelf ? this.lungeSelf : this.lungeFoe,
     });
@@ -695,7 +724,9 @@ export class GameRuntime {
         bladeAngle: this.bot?.bladeAngle ?? 90,
         guard: theirs.guardZone,
         wrist: botWrist(this.bot?.currentGuard ?? 'head'),
+        elbow: botElbow(this.bot?.currentGuard ?? 'head'),
         offWrist: botOffWrist(this.bot?.currentGuard ?? 'head'),
+        offElbow: botOffElbow(this.bot?.currentGuard ?? 'head'),
       };
       if (s.phase === 'countdown') countdown = Math.max(0, (s.phaseEndsAt - t) / 1000);
       incoming = s.pending.map((a) => ({
@@ -736,10 +767,18 @@ export class GameRuntime {
         bladeAngle: theirs.pose?.a ?? 90,
         hipOffset: theirs.pose?.h ?? 0,
         wrist: theirs.pose ? { x: theirs.pose.wx, y: theirs.pose.wy } : { x: 0.5, y: -0.6 },
+        elbow:
+          theirs.pose?.ex !== undefined && theirs.pose.ey !== undefined
+            ? { x: theirs.pose.ex, y: theirs.pose.ey }
+            : { x: 0.42, y: -0.95 },
         offWrist:
           theirs.pose?.owx !== undefined && theirs.pose.owy !== undefined
             ? { x: theirs.pose.owx, y: theirs.pose.owy }
             : { x: -0.55, y: -0.45 },
+        offElbow:
+          theirs.pose?.oex !== undefined && theirs.pose.oey !== undefined
+            ? { x: theirs.pose.oex, y: theirs.pose.oey }
+            : { x: -0.5, y: -0.7 },
         confidence: theirs.pose?.c ?? 1,
       };
       if (s.phase === 'countdown') {
@@ -811,8 +850,25 @@ function botWrist(zone: HitZone): { x: number; y: number } {
   }
 }
 
+function botElbow(zone: HitZone): { x: number; y: number } {
+  switch (zone) {
+    case 'head':
+      return { x: 0.34, y: -0.88 };
+    case 'torso':
+      return { x: 0.36, y: -0.5 };
+    case 'left':
+      return { x: -0.05, y: -0.62 };
+    case 'right':
+      return { x: 0.48, y: -0.58 };
+  }
+}
+
 function botOffWrist(zone: HitZone): { x: number; y: number } {
   return zone === 'head' ? { x: -0.26, y: -0.94 } : { x: -0.3, y: -0.36 };
+}
+
+function botOffElbow(zone: HitZone): { x: number; y: number } {
+  return zone === 'head' ? { x: -0.28, y: -0.82 } : { x: -0.38, y: -0.58 };
 }
 
 /** One runtime per page. Created lazily so tests can import this module. */

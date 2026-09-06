@@ -18,7 +18,7 @@ export const MATCH = {
   maxRounds: 3,
   startingHealth: 100,
   startingStamina: 100,
-  /** Seconds of "3 / 2 / 1 / FENCE" before a round goes live. */
+  /** Seconds of "3 / 2 / 1 / FIGHT" before a round goes live. */
   countdownSeconds: 3,
   /** A round that reaches this length ends on health (sudden-death avoided). */
   roundTimeLimitSeconds: 120,

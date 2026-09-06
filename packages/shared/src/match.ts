@@ -44,9 +44,15 @@ export interface PoseSnapshot {
   /** Dominant wrist position, body units. */
   wx: number;
   wy: number;
+  /** Dominant elbow position, body units. Optional for old room messages. */
+  ex?: number;
+  ey?: number;
   /** Off-hand position, body units. Optional for old room messages. */
   owx?: number;
   owy?: number;
+  /** Off elbow position, body units. Optional for old room messages. */
+  oex?: number;
+  oey?: number;
   /** Tracking confidence 0..1. */
   c: number;
 }

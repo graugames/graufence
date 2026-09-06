@@ -24,11 +24,12 @@ import type {
 } from '@graufence/shared';
 import {
   COOLDOWN,
+  boxingGuardForPose,
+  boxingZoneForHand,
   computeSword,
   fromAngle,
   lerpAngle,
   POSE,
-  zoneForAngle,
 } from '@graufence/shared';
 
 export interface KeyboardState {
@@ -73,6 +74,7 @@ function poseForAngle(angle: number, hipOffset: number, t: number): PoseFrame {
     elbow: { x: elbow.x + hipOffset, y: elbow.y },
     shoulder: { x: shoulder.x + hipOffset, y: shoulder.y },
     offWrist: { x: -0.55 + hipOffset, y: -0.45 },
+    offElbow: { x: -0.5 + hipOffset, y: -0.7 },
     hips: { x: hipOffset, y: 0 },
     shoulders: { x: hipOffset, y: -1 },
     head: { x: hipOffset, y: -1.45 },
@@ -190,7 +192,7 @@ export class KeyboardController {
    */
   press(key: string): void {
     const t = this.lastT || performance.now();
-    const zone = zoneForAngle(this.angle);
+    const zone = boxingZoneForHand(this.state.pose.wrist);
     const fire = (action: DetectedAction) => {
       if (!this.canFire(action.kind, t)) return;
       this.lastFire[action.kind] = t;
@@ -256,9 +258,9 @@ export class KeyboardController {
       pose,
       blade,
       bladeAngle: blade.angle,
-      // A keyboard player is always "holding still" in the sense the detector
-      // means, so the guard is simply wherever the blade points.
-      guardZone: zoneForAngle(blade.angle),
+      // Keyboard gloves are held still between key presses, so the same pose
+      // geometry used by camera play determines the block line.
+      guardZone: boxingGuardForPose(pose, 0),
     };
 
     return this.queued.splice(0);

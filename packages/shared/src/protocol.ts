@@ -4,8 +4,8 @@
  * Two rules shape everything here:
  *
  *  1. **No video, ever.** Camera frames never leave the browser. What crosses
- *     the wire is five numbers of pose per update and a handful of bytes per
- *     action - a couple of kB/s, not a video stream.
+ *     the wire is a compact set of wrist/elbow pose joints per update and a
+ *     handful of bytes per action - a couple of kB/s, not a video stream.
  *
  *  2. **The server believes nothing.** Clients send *intent* ("I thrust at the
  *     head"); they never send health, damage or outcomes. Every inbound message
@@ -244,6 +244,12 @@ const numberInRange = (v: unknown, lo: number, hi: number): v is number =>
 const isZone = (v: unknown): v is HitZone =>
   typeof v === 'string' && (HIT_ZONES as readonly string[]).includes(v);
 
+const OPTIONAL_POSE_PAIRS = [
+  ['ex', 'ey'],
+  ['owx', 'owy'],
+  ['oex', 'oey'],
+] as const;
+
 /**
  * Control characters (which can corrupt a terminal log) and the handful of
  * characters that read as markup. React escapes on render anyway; stripping
@@ -260,7 +266,7 @@ export function sanitizeName(raw: unknown): string {
     .replace(CONTROL_AND_MARKUP, '')
     .trim()
     .slice(0, 16);
-  return cleaned.length > 0 ? cleaned : 'Fencer';
+  return cleaned.length > 0 ? cleaned : 'Boxer';
 }
 
 export function sanitizeRoomCode(raw: unknown): string | null {
@@ -364,12 +370,19 @@ export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
       ) {
         return fail('bad_message', 'pose values out of range');
       }
-      const hasOffHand = p['owx'] !== undefined || p['owy'] !== undefined;
-      if (
-        hasOffHand &&
-        (!numberInRange(p['owx'], -8, 8) || !numberInRange(p['owy'], -8, 8))
-      ) {
-        return fail('bad_message', 'off-hand pose values out of range');
+      const optionalPose: Partial<PoseSnapshot> = {};
+      for (const [xKey, yKey] of OPTIONAL_POSE_PAIRS) {
+        const hasX = p[xKey] !== undefined;
+        const hasY = p[yKey] !== undefined;
+        if (hasX !== hasY) return fail('bad_message', `pose ${xKey}/${yKey} must be paired`);
+        if (hasX && (!numberInRange(p[xKey], -8, 8) || !numberInRange(p[yKey], -8, 8))) {
+          return fail('bad_message', `pose ${xKey}/${yKey} out of range`);
+        }
+        if (hasX) {
+          const poseFields = optionalPose as Record<string, number>;
+          poseFields[xKey] = p[xKey] as number;
+          poseFields[yKey] = p[yKey] as number;
+        }
       }
       const guardRaw = data['guard'];
       const guard = guardRaw === null || guardRaw === undefined ? null : guardRaw;
@@ -383,7 +396,7 @@ export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
             h: p['h'] as number,
             wx: p['wx'] as number,
             wy: p['wy'] as number,
-            ...(hasOffHand ? { owx: p['owx'] as number, owy: p['owy'] as number } : {}),
+            ...optionalPose,
             c: p['c'] as number,
           },
           guard,
@@ -447,7 +460,9 @@ export function compactPose(p: PoseSnapshot): PoseSnapshot {
     h: r(p.h),
     wx: r(p.wx),
     wy: r(p.wy),
+    ...(p.ex !== undefined && p.ey !== undefined ? { ex: r(p.ex), ey: r(p.ey) } : {}),
     ...(p.owx !== undefined && p.owy !== undefined ? { owx: r(p.owx), owy: r(p.owy) } : {}),
+    ...(p.oex !== undefined && p.oey !== undefined ? { oex: r(p.oex), oey: r(p.oey) } : {}),
     c: r(p.c),
   };
 }

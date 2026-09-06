@@ -41,7 +41,7 @@ export function DebugPanel() {
       <Row label="action" value={d.action} />
       <Row label="stamina" value={d.stamina} />
       <Row label="guard" value={d.guard} />
-      <Row label="blade" value={`${d.bladeAngle} deg`} />
+      <Row label="lead angle" value={`${d.bladeAngle} deg`} />
       <Row label="connection" value={d.connection} warn={d.connection !== 'connected'} />
       <Row label="delegate" value={d.delegate} />
       <Row label="landmarks" value={d.landmarks} warn={d.landmarks === 0} />

@@ -30,7 +30,9 @@ export interface FighterView {
   guard: HitZone | null;
   hipOffset: number;
   wrist: Vec2;
+  elbow: Vec2;
   offWrist: Vec2 | null;
+  offElbow: Vec2 | null;
   confidence: number;
   lungeProgress: number;
 }
@@ -95,6 +97,19 @@ function material(color: number, emissive = 0, opacity = 1): THREE.MeshStandardM
 
 function zoneHeight(zone: HitZone): number {
   return zone === 'head' ? 1.98 : zone === 'torso' ? 1.42 : 0.62;
+}
+
+function zoneOffsetX(zone: HitZone): number {
+  return zone === 'left' ? -0.42 : zone === 'right' ? 0.42 : 0;
+}
+
+/** Maps the normalized pose into the remote body's local ring space. */
+function mapPosePoint(out: THREE.Vector3, point: Vec2, hipOffset: number, z: number): void {
+  out.set(
+    clamp((point.x - hipOffset) * 1.15, -0.92, 0.92),
+    clamp(1 - point.y * 0.55, 0.76, 2.3),
+    z,
+  );
 }
 
 interface HitEffect {
@@ -164,18 +179,15 @@ class FencerRig {
 
     // The wrist uses the same normalized pose coordinates as the 2-D client,
     // but is placed into the opponent's local body space.
-    const wristX = clamp((fighter.wrist.x - 0.42) * 1.5, -0.72, 0.72);
-    const wristY = clamp(1.34 + (-fighter.wrist.y - 0.6) * 0.52, 0.92, 2.05);
-    this.elbow.set(wristX * 0.42, 1.45 + (wristY - 1.45) * 0.42, -0.08);
-    this.wrist.set(wristX, wristY, -0.3);
+    mapPosePoint(this.elbow, fighter.elbow, fighter.hipOffset, -0.08);
+    mapPosePoint(this.wrist, fighter.wrist, fighter.hipOffset, -0.3);
     placeBetween(this.limbs[0]!, this.shoulder, this.elbow, 0.13);
     placeBetween(this.limbs[1]!, this.elbow, this.wrist, 0.11);
 
     const offWrist = fighter.offWrist ?? { x: -0.55, y: -0.45 };
-    const offX = clamp((offWrist.x + 0.42) * 1.2, -0.72, 0.18);
-    const offY = clamp(1.34 + (-offWrist.y - 0.6) * 0.52, 0.92, 2.05);
-    this.offElbow.set(offX * 0.48, 1.45 + (offY - 1.45) * 0.42, -0.02);
-    this.offHand.set(offX, offY, -0.16);
+    const offElbow = fighter.offElbow ?? { x: -0.5, y: -0.7 };
+    mapPosePoint(this.offElbow, offElbow, fighter.hipOffset, -0.02);
+    mapPosePoint(this.offHand, offWrist, fighter.hipOffset, -0.16);
     placeBetween(this.limbs[2]!, this.shoulder, this.offElbow, 0.12);
     placeBetween(this.limbs[3]!, this.offElbow, this.offHand, 0.1);
 
@@ -202,10 +214,14 @@ export class Arena3DRenderer {
   private readonly selfHands = new THREE.Group();
   private readonly rightForearm: THREE.Mesh;
   private readonly leftForearm: THREE.Mesh;
+  private readonly rightUpperArm: THREE.Mesh;
+  private readonly leftUpperArm: THREE.Mesh;
   private readonly rightHand: THREE.Mesh;
   private readonly leftHand: THREE.Mesh;
   private readonly rightHandPos = new THREE.Vector3();
   private readonly leftHandPos = new THREE.Vector3();
+  private readonly rightElbowPos = new THREE.Vector3();
+  private readonly leftElbowPos = new THREE.Vector3();
   private readonly rightShoulderPos = new THREE.Vector3();
   private readonly leftShoulderPos = new THREE.Vector3();
   private readonly targetRings: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
@@ -367,11 +383,20 @@ export class Arena3DRenderer {
     const armMaterial = material(0x17364b, SELF, 0.95);
     this.rightForearm = new THREE.Mesh(armGeometry, armMaterial);
     this.leftForearm = new THREE.Mesh(armGeometry, armMaterial);
+    this.rightUpperArm = new THREE.Mesh(armGeometry, armMaterial);
+    this.leftUpperArm = new THREE.Mesh(armGeometry, armMaterial);
     this.rightHand = new THREE.Mesh(gloveGeometry, armMaterial);
     this.leftHand = new THREE.Mesh(gloveGeometry, armMaterial);
     this.rightHand.rotation.z = -0.26;
     this.leftHand.rotation.z = 0.26;
-    this.selfHands.add(this.rightForearm, this.leftForearm, this.rightHand, this.leftHand);
+    this.selfHands.add(
+      this.rightUpperArm,
+      this.leftUpperArm,
+      this.rightForearm,
+      this.leftForearm,
+      this.rightHand,
+      this.leftHand,
+    );
 
     this.camera.add(this.selfHands);
     this.scene.add(this.camera);
@@ -418,14 +443,19 @@ export class Arena3DRenderer {
     const effect = this.hitEffects.find((candidate) => candidate.life <= 0) ?? this.hitEffects[0];
     if (!effect) return;
     effect.life = 1;
-    effect.x = onSelf ? 0 : this.opponent.group.position.x;
+    effect.x = onSelf ? zoneOffsetX(zone) : this.opponent.group.position.x;
     effect.y = zoneHeight(zone) + (onSelf ? -0.15 : 0);
-    effect.z = onSelf ? 0.2 : 4.08;
+    // Keep first-person impact feedback in front of the gloves. At z=0.2 a
+    // scaled torus sits inside the near clip volume and becomes a full-screen
+    // orange sheet instead of a readable hit ring.
+    effect.z = onSelf ? 1.25 : 4.08;
     effect.mesh.material.color.set(cssColor(outcome === 'parried' || outcome === 'perfect_parry' ? PALETTE.parry : PALETTE.hit, FOE));
     effect.mesh.material.opacity = 0.95;
     effect.mesh.visible = true;
     effect.mesh.position.set(effect.x, effect.y, effect.z);
-    effect.mesh.scale.setScalar(0.65 + Math.min(0.55, damage / 80));
+    effect.mesh.scale.setScalar(
+      onSelf ? 0.48 + Math.min(0.3, damage / 120) : 0.65 + Math.min(0.55, damage / 80),
+    );
     this.shake = Math.min(0.18, this.shake + (onSelf ? 0.12 : 0.06));
   }
 
@@ -471,20 +501,31 @@ export class Arena3DRenderer {
   }
 
   private updateHands(me: FighterView): void {
-    const handX = clamp((me.wrist.x - 0.42) * 0.42, -0.22, 0.22);
+    const handX = clamp((me.wrist.x - me.hipOffset - 0.42) * 0.42, -0.22, 0.22);
     const handY = clamp(-0.34 - (me.wrist.y + 0.6) * 0.14, -0.62, -0.08);
+    const elbowX = clamp((me.elbow.x - me.hipOffset - 0.42) * 0.3, -0.14, 0.14);
+    const elbowY = clamp(-0.56 - (me.elbow.y + 0.95) * 0.12, -0.66, -0.34);
     const offWrist = me.offWrist ?? { x: -0.55, y: -0.45 };
-    const offX = clamp((offWrist.x + 0.42) * 0.32, -0.22, 0.14);
+    const offElbow = me.offElbow ?? { x: -0.5, y: -0.7 };
+    const offX = clamp((offWrist.x - me.hipOffset + 0.42) * 0.32, -0.22, 0.14);
     const offY = clamp(-0.39 - (offWrist.y + 0.45) * 0.14, -0.62, -0.12);
+    const offElbowX = clamp((offElbow.x - me.hipOffset + 0.5) * 0.24, -0.14, 0.1);
+    const offElbowY = clamp(-0.58 - (offElbow.y + 0.7) * 0.12, -0.68, -0.38);
     const right = this.rightHandPos.set(0.25 + handX, handY, -1.12);
     const left = this.leftHandPos.set(-0.1 + offX, offY, -1.04);
     const shoulderRight = this.rightShoulderPos.set(0.11, -0.78, -0.4);
     const shoulderLeft = this.leftShoulderPos.set(-0.11, -0.8, -0.42);
+    const rightElbow = this.rightElbowPos.set(0.17 + elbowX, elbowY, -0.72);
+    const leftElbow = this.leftElbowPos.set(-0.16 + offElbowX, offElbowY, -0.7);
     const reach = me.lungeProgress * 0.5;
     right.z -= reach;
     left.z -= reach * 0.35;
-    placeBetween(this.rightForearm, shoulderRight, right, 0.055);
-    placeBetween(this.leftForearm, shoulderLeft, left, 0.05);
+    rightElbow.z -= reach * 0.45;
+    leftElbow.z -= reach * 0.2;
+    placeBetween(this.rightUpperArm, shoulderRight, rightElbow, 0.055);
+    placeBetween(this.leftUpperArm, shoulderLeft, leftElbow, 0.05);
+    placeBetween(this.rightForearm, rightElbow, right, 0.055);
+    placeBetween(this.leftForearm, leftElbow, left, 0.05);
     this.rightHand.position.copy(right);
     this.leftHand.position.copy(left);
     this.selfHands.position.x = me.hipOffset * 0.12;
