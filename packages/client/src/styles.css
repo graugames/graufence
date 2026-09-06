@@ -424,12 +424,235 @@ input[type='range'] {
   overflow: hidden;
 }
 
-.arena-canvas {
+.arena-surface {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+  overflow: hidden;
+  background: var(--bg);
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.arena-surface canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.arena-hud {
+  position: absolute;
+  inset: 0;
+  padding: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.arena-fighter-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
+  align-items: start;
+  gap: clamp(12px, 4vw, 72px);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.arena-fighter-card {
+  width: min(32vw, 340px);
+  padding: 10px 12px 8px;
+  background: rgba(7, 11, 20, 0.72);
+  border: 1px solid var(--border);
+  border-top: 2px solid currentColor;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  color: var(--text);
+}
+
+.arena-fighter-card.self {
+  color: var(--self);
+}
+
+.arena-fighter-card.foe {
+  color: var(--foe);
+}
+
+.arena-fighter-card.right {
+  text-align: right;
+}
+
+.arena-fighter-heading,
+.arena-fighter-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.arena-fighter-heading strong {
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.arena-meter {
+  height: 7px;
+  margin-top: 7px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.arena-meter span {
+  display: block;
+  height: 100%;
+  transition: width 120ms linear;
+}
+
+.arena-meter.health span {
+  background: var(--good);
+}
+
+.arena-meter.health span.low {
+  background: var(--bad);
+}
+
+.arena-meter.stamina {
+  height: 3px;
+  margin-top: 4px;
+}
+
+.arena-meter.stamina span {
+  background: var(--warn);
+}
+
+.arena-fighter-foot {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 9px;
+}
+
+.arena-score {
+  min-width: 82px;
+  padding-top: 4px;
+  text-align: center;
+}
+
+.arena-round-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.arena-score-pips {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.arena-score-pips i {
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(232, 238, 252, 0.28);
+  border-radius: 50%;
+}
+
+.arena-score-pips i.won.self {
+  background: var(--self);
+  border-color: var(--self);
+}
+
+.arena-score-pips i.won.foe {
+  background: var(--foe);
+  border-color: var(--foe);
+}
+
+.arena-score-pips b {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.arena-callout {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  color: var(--text);
+  font-size: clamp(30px, 5vw, 70px);
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.7);
+}
+
+.arena-callout.good {
+  color: var(--self);
+}
+
+.arena-callout.bad {
+  color: var(--bad);
+}
+
+.arena-callout.neutral {
+  color: var(--text);
+}
+
+.arena-tracking-warning {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  width: min(560px, calc(100% - 28px));
+  transform: translateX(-50%);
+  padding: 9px 14px;
+  border: 1px solid var(--warn);
+  border-radius: 7px;
+  background: rgba(39, 28, 7, 0.86);
+  color: var(--warn);
+  font-size: 12px;
+  text-align: center;
+}
+
+.arena-reticle {
+  position: absolute;
+  left: 50%;
+  top: 51%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(232, 238, 252, 0.66);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(7, 11, 20, 0.34);
+  pointer-events: none;
+}
+
+.arena-reticle::before,
+.arena-reticle::after {
+  content: '';
+  position: absolute;
+  background: rgba(232, 238, 252, 0.7);
+}
+
+.arena-reticle::before {
+  left: 50%;
+  top: -5px;
+  bottom: -5px;
+  width: 1px;
+  transform: translateX(-50%);
+}
+
+.arena-reticle::after {
+  top: 50%;
+  left: -5px;
+  right: -5px;
+  height: 1px;
+  transform: translateY(-50%);
 }
 
 /* Chrome floats above the canvas but must never swallow its pointer events -
@@ -452,7 +675,7 @@ input[type='range'] {
 .chrome-top {
   display: flex;
   gap: 8px;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: flex-start;
 }
 

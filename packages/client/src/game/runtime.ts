@@ -13,9 +13,9 @@
  *
  * Two things are worth stating plainly because they shape the whole design:
  *
- *  - **Nothing here re-renders React.** Health, stamina, blade angle and every
- *    effect are drawn straight to the canvas. React only hears about screen
- *    changes (see ../state/app.ts).
+ *  - **Nothing here re-renders React at frame rate.** Health, stamina, blade
+ *    angle and every effect go straight to WebGL. React only receives the
+ *    low-frequency HUD snapshot and screen changes (see ../state/app.ts).
  *  - **Local feedback is a lie, and knowingly so.** When you throw an attack
  *    the client flashes it immediately, because 80 ms of network round trip
  *    would make the game feel broken. The server decides what actually
@@ -44,8 +44,8 @@ import type {
 import { PoseTracker } from '../cv/poseTracker.js';
 import { KeyboardController } from '../input/keyboard.js';
 import { Connection } from '../net/connection.js';
-import { ArenaRenderer } from '../render/arena.js';
-import type { ArenaView, FighterView, IncomingView } from '../render/arena.js';
+import { Arena3DRenderer } from '../render/arena3d.js';
+import type { ArenaView, FighterView, IncomingView } from '../render/arena3d.js';
 import { PALETTE } from '../render/palette.js';
 import { PracticeBot } from './bot.js';
 import type { BotDifficulty } from './bot.js';
@@ -81,6 +81,36 @@ export const debugStore = createStore<DebugSnapshot>({
   landmarks: 0,
 });
 
+/** Low-frequency HUD data; the WebGL scene itself never asks React to render. */
+const initialHudFighter = (isSelf: boolean): FighterView => ({
+  name: isSelf ? 'You' : 'Opponent',
+  side: isSelf ? -1 : 1,
+  isSelf,
+  health: MATCH.startingHealth,
+  stamina: MATCH.startingStamina,
+  roundsWon: 0,
+  connected: true,
+  staggered: false,
+  bladeAngle: 90,
+  guard: null,
+  hipOffset: 0,
+  wrist: { x: 0.5, y: -0.6 },
+  confidence: 1,
+  lungeProgress: 0,
+});
+
+export const arenaHudStore = createStore<ArenaView>({
+  me: initialHudFighter(true),
+  them: initialHudFighter(false),
+  phase: 'lobby',
+  round: 1,
+  countdown: null,
+  incoming: [],
+  banner: null,
+  bannerTone: 'neutral',
+  trackingWarning: null,
+});
+
 const BANNER_MS = 2200;
 
 export class GameRuntime {
@@ -89,10 +119,9 @@ export class GameRuntime {
   readonly keyboard = new KeyboardController();
   private normalizer = new PoseNormalizer();
   private detector = new ActionDetector();
-  private renderer = new ArenaRenderer();
+  private renderer = new Arena3DRenderer();
 
-  private canvas: HTMLCanvasElement | null = null;
-  private ctx: CanvasRenderingContext2D | null = null;
+  private surface: HTMLElement | null = null;
   private rafId = 0;
   private running = false;
   private detachPointer: (() => void) | null = null;
@@ -112,6 +141,7 @@ export class GameRuntime {
   private bannerTone: 'good' | 'bad' | 'neutral' = 'neutral';
   private bannerUntil = 0;
   private lastDebugAt = 0;
+  private lastHudAt = 0;
   private seenEventKeys = new Set<number>();
   /** Local lunge animation, decayed each frame. */
   private lungeSelf = 0;
@@ -126,28 +156,18 @@ export class GameRuntime {
 
   // ------------------------------------------------------------------ set-up
 
-  attachCanvas(canvas: HTMLCanvasElement): void {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext('2d', { alpha: false });
+  attachSurface(surface: HTMLElement): void {
+    this.surface = surface;
+    this.renderer.attach(surface);
     this.resize();
     this.detachPointer?.();
-    this.detachPointer = this.keyboard.attachPointer(canvas);
+    this.detachPointer = this.keyboard.attachPointer(surface);
   }
 
-  /** Sizes the backing store to the element, capped for fill-rate reasons. */
+  /** Keeps the WebGL camera and drawing buffer aligned with the mounted surface. */
   resize(): void {
-    const canvas = this.canvas;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    // Capping DPR at 2 keeps a 4K display from quadrupling the pixels drawn for
-    // a look that is mostly flat colour anyway.
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = Math.max(320, Math.round(rect.width * dpr));
-    const h = Math.max(240, Math.round(rect.height * dpr));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
+    if (!this.surface) return;
+    this.renderer.resize();
   }
 
   async startCamera(): Promise<boolean> {
@@ -304,8 +324,13 @@ export class GameRuntime {
     // 4. Draw.
     this.lungeSelf = Math.max(0, this.lungeSelf - 0.04);
     this.lungeFoe = Math.max(0, this.lungeFoe - 0.04);
-    if (this.ctx) {
-      this.renderer.draw(this.ctx, this.buildView(t, bladeAngle, guard, wrist, hipOffset, confidence), t);
+    const view = this.buildView(t, bladeAngle, guard, wrist, hipOffset, confidence);
+    if (this.surface) {
+      this.renderer.draw(view, t);
+    }
+    if (t - this.lastHudAt > 80) {
+      this.lastHudAt = t;
+      arenaHudStore.set(view);
     }
 
     // 5. Debug, at 5 Hz rather than 60.

@@ -1,23 +1,25 @@
 /**
  * The arena.
  *
- * Almost nothing here is React. The canvas is handed to the runtime once and
- * then owned by it entirely; this component's whole job is to mount that
- * canvas, keep it sized, and render the few pieces of chrome around it that
+ * Almost nothing here is React. The WebGL surface is handed to the runtime
+ * once and then owned by it entirely; this component's whole job is to mount
+ * that surface, keep it sized, and render the few pieces of chrome around it that
  * change slowly enough to be worth a component: the combat log, the latency
  * pill, the camera thumbnail, the debug panel.
  */
 
 import { useCallback, useEffect, useRef } from 'react';
 import { appStore, useApp } from '../state/app.js';
-import { getRuntime } from '../game/runtime.js';
+import { arenaHudStore, getRuntime } from '../game/runtime.js';
+import { useStoreValue } from '../state/store.js';
 import { CameraPreview } from './CameraPreview.js';
 import { CombatLog } from './CombatLog.js';
 import { DebugPanel } from './DebugPanel.js';
+import { ArenaHud } from './ArenaHud.js';
 
 export function ArenaScreen() {
   const runtime = getRuntime();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const controls = useApp((s) => s.controls);
   const cameraStatus = useApp((s) => s.cameraStatus);
   const debug = useApp((s) => s.debug);
@@ -25,18 +27,19 @@ export function ArenaScreen() {
   const connection = useApp((s) => s.connection);
   const mode = useApp((s) => s.mode);
   const opponentStatus = useApp((s) => s.opponentStatus);
+  const hud = useStoreValue(arenaHudStore, (s) => s);
   const getLandmarks = useCallback(() => runtime.landmarks, [runtime]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    runtime.attachCanvas(canvas);
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    runtime.attachSurface(surface);
     runtime.start();
 
-    // ResizeObserver rather than a window listener: the canvas also changes
+    // ResizeObserver rather than a window listener: the WebGL surface also changes
     // size when the log panel appears or the sidebar wraps on a narrow screen.
     const observer = new ResizeObserver(() => runtime.resize());
-    observer.observe(canvas);
+    observer.observe(surface);
     return () => {
       observer.disconnect();
       runtime.stop();
@@ -57,7 +60,9 @@ export function ArenaScreen() {
 
   return (
     <div className="screen arena">
-      <canvas ref={canvasRef} className="arena-canvas" />
+      <div ref={surfaceRef} className="arena-surface" aria-label="3D fencing arena" />
+      <div className="arena-reticle" aria-hidden="true" />
+      {hud && <ArenaHud view={hud} />}
 
       <div className="arena-chrome">
         <div className="chrome-top">

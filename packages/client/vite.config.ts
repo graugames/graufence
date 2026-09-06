@@ -25,6 +25,7 @@ export default defineConfig({
         manualChunks: {
           mediapipe: ['@mediapipe/tasks-vision'],
           react: ['react', 'react-dom'],
+          three: ['three'],
         },
       },
     },

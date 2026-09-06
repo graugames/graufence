@@ -136,10 +136,10 @@ export class KeyboardController {
     return () => this.detach();
   }
 
-  /** Mouse aiming, bound by the arena canvas so coordinates make sense. */
-  attachPointer(canvas: HTMLCanvasElement): () => void {
+  /** Mouse aiming, bound by the arena surface so coordinates make sense. */
+  attachPointer(surface: HTMLElement): () => void {
     const onMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = surface.getBoundingClientRect();
       // Aim relative to the lower-centre of the player's half of the arena,
       // which is roughly where their avatar's hand is drawn.
       const originX = rect.left + rect.width * 0.28;
@@ -153,11 +153,11 @@ export class KeyboardController {
       e.preventDefault();
       this.press('l');
     };
-    canvas.addEventListener('mousemove', onMove);
-    canvas.addEventListener('contextmenu', onContext);
+    surface.addEventListener('mousemove', onMove);
+    surface.addEventListener('contextmenu', onContext);
     return () => {
-      canvas.removeEventListener('mousemove', onMove);
-      canvas.removeEventListener('contextmenu', onContext);
+      surface.removeEventListener('mousemove', onMove);
+      surface.removeEventListener('contextmenu', onContext);
     };
   }
 
