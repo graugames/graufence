@@ -129,11 +129,12 @@ export class PoseTracker {
   async start({ onStatus }: StartOptions = {}): Promise<void> {
     onStatus?.('Requesting camera...');
     this.stream = await navigator.mediaDevices.getUserMedia({
-      // 640x480 is plenty for body landmarks and keeps inference predictable on
-      // laptops whose GPU is already busy drawing the arena.
+      // Give the pose model enough pixels for wrists, elbows, and the lower
+      // body. The detector still caps inference separately, so this improves
+      // landmark quality without turning the render loop into a camera loop.
       video: {
-        width: { ideal: 640, max: 960 },
-        height: { ideal: 480, max: 720 },
+        width: { ideal: 960, max: 1280 },
+        height: { ideal: 720, max: 720 },
         frameRate: { ideal: 30, max: 30 },
         facingMode: 'user',
       },

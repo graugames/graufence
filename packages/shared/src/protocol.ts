@@ -4,8 +4,8 @@
  * Two rules shape everything here:
  *
  *  1. **No video, ever.** Camera frames never leave the browser. What crosses
- *     the wire is a compact set of wrist/elbow pose joints per update and a
- *     handful of bytes per action - a couple of kB/s, not a video stream.
+ *     the wire is a compact skeleton pose per update and a handful of bytes per
+ *     action - a couple of kB/s, not a video stream.
  *
  *  2. **The server believes nothing.** Clients send *intent* ("I thrust at the
  *     head"); they never send health, damage or outcomes. Every inbound message
@@ -248,6 +248,13 @@ const OPTIONAL_POSE_PAIRS = [
   ['ex', 'ey'],
   ['owx', 'owy'],
   ['oex', 'oey'],
+  ['hx', 'hy'],
+  ['sx', 'sy'],
+  ['px', 'py'],
+  ['lkx', 'lky'],
+  ['rkx', 'rky'],
+  ['lax', 'lay'],
+  ['rax', 'ray'],
 ] as const;
 
 /**
@@ -290,7 +297,7 @@ const fail = (code: ErrorCode, reason: string): ParseResult => ({ ok: false, cod
  * this is the only place inbound data is allowed to be shapeless.
  *
  * @param raw the raw frame (string or Buffer-like).
- * @param maxBytes reject anything larger; a pose update is under 200 bytes.
+ * @param maxBytes reject anything larger; a pose update is a few hundred bytes.
  */
 export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
   let text: string;
@@ -463,6 +470,13 @@ export function compactPose(p: PoseSnapshot): PoseSnapshot {
     ...(p.ex !== undefined && p.ey !== undefined ? { ex: r(p.ex), ey: r(p.ey) } : {}),
     ...(p.owx !== undefined && p.owy !== undefined ? { owx: r(p.owx), owy: r(p.owy) } : {}),
     ...(p.oex !== undefined && p.oey !== undefined ? { oex: r(p.oex), oey: r(p.oey) } : {}),
+    ...(p.hx !== undefined && p.hy !== undefined ? { hx: r(p.hx), hy: r(p.hy) } : {}),
+    ...(p.sx !== undefined && p.sy !== undefined ? { sx: r(p.sx), sy: r(p.sy) } : {}),
+    ...(p.px !== undefined && p.py !== undefined ? { px: r(p.px), py: r(p.py) } : {}),
+    ...(p.lkx !== undefined && p.lky !== undefined ? { lkx: r(p.lkx), lky: r(p.lky) } : {}),
+    ...(p.rkx !== undefined && p.rky !== undefined ? { rkx: r(p.rkx), rky: r(p.rky) } : {}),
+    ...(p.lax !== undefined && p.lay !== undefined ? { lax: r(p.lax), lay: r(p.lay) } : {}),
+    ...(p.rax !== undefined && p.ray !== undefined ? { rax: r(p.rax), ray: r(p.ray) } : {}),
     c: r(p.c),
   };
 }

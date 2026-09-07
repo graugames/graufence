@@ -27,13 +27,16 @@ function assess(landmarks: Landmark[]): Readiness {
   if (landmarks.length === 0) {
     return { ok: false, message: 'No one in frame. Step in front of the camera.' };
   }
-  const needed = [11, 12, 13, 14, 15, 16, 23, 24];
+  // The head anchors the avatar and the eight boxing joints make the initial
+  // body map stable; knees/ankles remain optional so a seated player can still
+  // use the game.
+  const needed = [0, 11, 12, 13, 14, 15, 16, 23, 24];
   const weak = needed.filter((i) => (landmarks[i]?.visibility ?? 0) < POSE.minLandmarkConfidence);
   if (weak.length > 0) {
     return {
       ok: false,
       message:
-        'Step back a little - your shoulders, both arms and your hips all need ' +
+        'Step back a little - your head, shoulders, both arms and hips all need ' +
         'to be visible at once.',
     };
   }

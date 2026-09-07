@@ -99,6 +99,13 @@ const initialHudFighter = (isSelf: boolean): FighterView => ({
   elbow: { x: 0.42, y: -0.95 },
   offWrist: { x: -0.55, y: -0.45 },
   offElbow: { x: -0.5, y: -0.7 },
+  head: { x: 0, y: -1.45 },
+  shoulders: { x: 0, y: -1 },
+  hips: { x: 0, y: 0 },
+  leftKnee: { x: -0.35, y: 0.85 },
+  rightKnee: { x: 0.35, y: 0.85 },
+  leftAnkle: { x: -0.4, y: 1.65 },
+  rightAnkle: { x: 0.4, y: 1.65 },
   confidence: 1,
   lungeProgress: 0,
 });
@@ -292,6 +299,7 @@ export class GameRuntime {
     let offElbow = { x: -0.5, y: -0.7 };
     let hipOffset = 0;
     let confidence = 1;
+    let poseForNetwork: PoseFrame;
 
     if (app.controls === 'keyboard') {
       actions = this.keyboard.update(t);
@@ -304,6 +312,7 @@ export class GameRuntime {
       offElbow = ks.pose.offElbow ?? offElbow;
       hipOffset = ks.pose.hips.x;
       this.lastPose = ks.pose;
+      poseForNetwork = ks.pose;
     } else {
       const { landmarks, fresh } = this.tracker.update(t);
       const pose = this.normalizer.process(landmarks, t);
@@ -321,6 +330,7 @@ export class GameRuntime {
       offElbow = pose.offElbow ?? offElbow;
       hipOffset = ds.hipOffset;
       confidence = ds.confidence;
+      poseForNetwork = pose;
       if (ds.lostTracking !== app.trackingLost) {
         appStore.set({ trackingLost: ds.lostTracking });
       }
@@ -329,7 +339,7 @@ export class GameRuntime {
     if (guard !== app.guard) appStore.set({ guard });
 
     // 2. Publish intent.
-    this.sendPose(bladeAngle, guard, wrist, elbow, offWrist, offElbow, hipOffset, confidence);
+    this.sendPose(poseForNetwork, bladeAngle, guard, wrist, elbow, offWrist, offElbow, hipOffset, confidence);
     for (const action of actions) this.dispatch(action, t);
 
     // 3. Advance practice mode (online mode is advanced by the server).
@@ -354,6 +364,7 @@ export class GameRuntime {
       offElbow,
       hipOffset,
       confidence,
+      poseForNetwork,
     );
     if (this.surface) {
       this.renderer.draw(view, t);
@@ -371,6 +382,7 @@ export class GameRuntime {
   }
 
   private sendPose(
+    pose: PoseFrame,
     bladeAngle: number,
     guard: HitZone | null,
     wrist: Vec2,
@@ -394,6 +406,16 @@ export class GameRuntime {
         owy: offWrist.y,
         oex: offElbow.x,
         oey: offElbow.y,
+        hx: pose.head.x,
+        hy: pose.head.y,
+        sx: pose.shoulders.x,
+        sy: pose.shoulders.y,
+        px: pose.hips.x,
+        py: pose.hips.y,
+        ...(pose.leftKnee ? { lkx: pose.leftKnee.x, lky: pose.leftKnee.y } : {}),
+        ...(pose.rightKnee ? { rkx: pose.rightKnee.x, rky: pose.rightKnee.y } : {}),
+        ...(pose.leftAnkle ? { lax: pose.leftAnkle.x, lay: pose.leftAnkle.y } : {}),
+        ...(pose.rightAnkle ? { rax: pose.rightAnkle.x, ray: pose.rightAnkle.y } : {}),
         c: confidence,
       },
       guard,
@@ -661,6 +683,7 @@ export class GameRuntime {
     offElbow: Vec2,
     hipOffset: number,
     confidence: number,
+    pose: PoseFrame,
   ): ArenaView {
     const app = appStore.get();
     const banner = this.banner && t < this.bannerUntil ? this.banner : null;
@@ -688,6 +711,13 @@ export class GameRuntime {
       elbow: isSelf ? elbow : { x: 0.42, y: -0.95 },
       offWrist: isSelf ? offWrist : { x: -0.55, y: -0.45 },
       offElbow: isSelf ? offElbow : { x: -0.5, y: -0.7 },
+      head: isSelf ? pose.head : { x: 0, y: -1.45 },
+      shoulders: isSelf ? pose.shoulders : { x: 0, y: -1 },
+      hips: isSelf ? pose.hips : { x: 0, y: 0 },
+      leftKnee: isSelf ? pose.leftKnee : { x: -0.35, y: 0.85 },
+      rightKnee: isSelf ? pose.rightKnee : { x: 0.35, y: 0.85 },
+      leftAnkle: isSelf ? pose.leftAnkle : { x: -0.4, y: 1.65 },
+      rightAnkle: isSelf ? pose.rightAnkle : { x: 0.4, y: 1.65 },
       confidence: isSelf ? confidence : 1,
       lungeProgress: isSelf ? this.lungeSelf : this.lungeFoe,
     });
@@ -779,6 +809,34 @@ export class GameRuntime {
           theirs.pose?.oex !== undefined && theirs.pose.oey !== undefined
             ? { x: theirs.pose.oex, y: theirs.pose.oey }
             : { x: -0.5, y: -0.7 },
+        head:
+          theirs.pose?.hx !== undefined && theirs.pose.hy !== undefined
+            ? { x: theirs.pose.hx, y: theirs.pose.hy }
+            : { x: 0, y: -1.45 },
+        shoulders:
+          theirs.pose?.sx !== undefined && theirs.pose.sy !== undefined
+            ? { x: theirs.pose.sx, y: theirs.pose.sy }
+            : { x: 0, y: -1 },
+        hips:
+          theirs.pose?.px !== undefined && theirs.pose.py !== undefined
+            ? { x: theirs.pose.px, y: theirs.pose.py }
+            : { x: 0, y: 0 },
+        leftKnee:
+          theirs.pose?.lkx !== undefined && theirs.pose.lky !== undefined
+            ? { x: theirs.pose.lkx, y: theirs.pose.lky }
+            : { x: -0.35, y: 0.85 },
+        rightKnee:
+          theirs.pose?.rkx !== undefined && theirs.pose.rky !== undefined
+            ? { x: theirs.pose.rkx, y: theirs.pose.rky }
+            : { x: 0.35, y: 0.85 },
+        leftAnkle:
+          theirs.pose?.lax !== undefined && theirs.pose.lay !== undefined
+            ? { x: theirs.pose.lax, y: theirs.pose.lay }
+            : { x: -0.4, y: 1.65 },
+        rightAnkle:
+          theirs.pose?.rax !== undefined && theirs.pose.ray !== undefined
+            ? { x: theirs.pose.rax, y: theirs.pose.ray }
+            : { x: 0.4, y: 1.65 },
         confidence: theirs.pose?.c ?? 1,
       };
       if (s.phase === 'countdown') {

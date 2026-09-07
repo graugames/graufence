@@ -75,10 +75,16 @@ function poseForAngle(angle: number, hipOffset: number, t: number): PoseFrame {
     shoulder: { x: shoulder.x + hipOffset, y: shoulder.y },
     offWrist: { x: -0.55 + hipOffset, y: -0.45 },
     offElbow: { x: -0.5 + hipOffset, y: -0.7 },
+    leftKnee: { x: -0.35 + hipOffset, y: 0.85 },
+    rightKnee: { x: 0.35 + hipOffset, y: 0.85 },
+    leftAnkle: { x: -0.4 + hipOffset, y: 1.65 },
+    rightAnkle: { x: 0.4 + hipOffset, y: 1.65 },
     hips: { x: hipOffset, y: 0 },
     shoulders: { x: hipOffset, y: -1 },
     head: { x: hipOffset, y: -1.45 },
     wristDepth: 0,
+    armExtension: 0.7,
+    armStraightness: 0.7,
     rawScale: 0.22,
   };
 }

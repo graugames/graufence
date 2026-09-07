@@ -33,6 +33,13 @@ export interface FighterView {
   elbow: Vec2;
   offWrist: Vec2 | null;
   offElbow: Vec2 | null;
+  head: Vec2;
+  shoulders: Vec2;
+  hips: Vec2;
+  leftKnee: Vec2 | null;
+  rightKnee: Vec2 | null;
+  leftAnkle: Vec2 | null;
+  rightAnkle: Vec2 | null;
   confidence: number;
   lungeProgress: number;
 }
@@ -107,7 +114,7 @@ function zoneOffsetX(zone: HitZone): number {
 function mapPosePoint(out: THREE.Vector3, point: Vec2, hipOffset: number, z: number): void {
   out.set(
     clamp((point.x - hipOffset) * 1.15, -0.92, 0.92),
-    clamp(1 - point.y * 0.55, 0.76, 2.3),
+    clamp(1 - point.y * 0.55, 0.08, 2.3),
     z,
   );
 }
@@ -171,9 +178,9 @@ class FencerRig {
     this.bodyMaterial.opacity = fighter.staggered ? 0.46 : 0.94 * signal;
     this.dimMaterial.opacity = 0.2 * signal;
 
-    this.hip.set(0, 1.0, 0);
-    this.shoulder.set(0, 1.55, 0);
-    this.headPoint.set(0, 1.92, 0);
+    mapPosePoint(this.hip, fighter.hips, fighter.hipOffset, 0);
+    mapPosePoint(this.shoulder, fighter.shoulders, fighter.hipOffset, 0);
+    mapPosePoint(this.headPoint, fighter.head, fighter.hipOffset, 0);
     this.head.position.copy(this.headPoint);
     placeBetween(this.torso, this.hip, this.shoulder, 0.36);
 
@@ -191,10 +198,10 @@ class FencerRig {
     placeBetween(this.limbs[2]!, this.shoulder, this.offElbow, 0.12);
     placeBetween(this.limbs[3]!, this.offElbow, this.offHand, 0.1);
 
-    this.leftKnee.set(-0.2, 0.52, 0.02);
-    this.rightKnee.set(0.2, 0.52, 0.02);
-    this.leftFoot.set(-0.26, 0.06, -0.16);
-    this.rightFoot.set(0.26, 0.06, 0.22);
+    mapPosePoint(this.leftKnee, fighter.leftKnee ?? { x: -0.2, y: 0.85 }, fighter.hipOffset, 0.02);
+    mapPosePoint(this.rightKnee, fighter.rightKnee ?? { x: 0.2, y: 0.85 }, fighter.hipOffset, 0.02);
+    mapPosePoint(this.leftFoot, fighter.leftAnkle ?? { x: -0.26, y: 1.65 }, fighter.hipOffset, -0.16);
+    mapPosePoint(this.rightFoot, fighter.rightAnkle ?? { x: 0.26, y: 1.65 }, fighter.hipOffset, 0.22);
     placeBetween(this.limbs[4]!, this.hip, this.leftKnee, 0.14);
     placeBetween(this.limbs[5]!, this.leftKnee, this.leftFoot, 0.11);
     placeBetween(this.limbs[6]!, this.hip, this.rightKnee, 0.14);
@@ -226,9 +233,12 @@ export class Arena3DRenderer {
   private readonly leftShoulderPos = new THREE.Vector3();
   private readonly targetRings: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly incomingRings: THREE.Mesh<THREE.TorusGeometry, THREE.MeshBasicMaterial>[] = [];
-  private readonly punchGhosts: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>[] = [];
+  /** A real forearm + fist for every pending attack, instead of a projectile orb. */
+  private readonly punchForearms: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>[] = [];
+  private readonly punchGhosts: THREE.Mesh<THREE.CapsuleGeometry, THREE.MeshBasicMaterial>[] = [];
   private readonly ghostFrom = new THREE.Vector3();
   private readonly ghostTo = new THREE.Vector3();
+  private readonly punchCurrent = new THREE.Vector3();
   private readonly hitEffects: HitEffect[] = [];
   private readonly eventLight: THREE.PointLight;
   private flashColor = SELF;
@@ -358,10 +368,19 @@ export class Arena3DRenderer {
       );
       this.incomingRings.push(ring);
       this.scene.add(ring);
-      const ghost = new THREE.Mesh(
-        new THREE.SphereGeometry(0.13, 8, 6),
+      const forearm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.075, 0.11, 1, 8),
         new THREE.MeshBasicMaterial({ color: SELF, transparent: true, opacity: 0 }),
       );
+      forearm.visible = false;
+      this.punchForearms.push(forearm);
+      this.scene.add(forearm);
+
+      const ghost = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.14, 0.18, 4, 8),
+        new THREE.MeshBasicMaterial({ color: SELF, transparent: true, opacity: 0 }),
+      );
+      ghost.visible = false;
       this.punchGhosts.push(ghost);
       this.scene.add(ghost);
       const effect = new THREE.Mesh(
@@ -543,32 +562,49 @@ export class Arena3DRenderer {
     for (let i = 0; i < this.incomingRings.length; i += 1) {
       const ring = this.incomingRings[i]!;
       const ghost = this.punchGhosts[i]!;
+      const forearm = this.punchForearms[i]!;
       const incoming = view.incoming[i];
       if (!incoming) {
         ring.material.opacity = 0;
         ghost.material.opacity = 0;
+        ghost.visible = false;
+        forearm.material.opacity = 0;
+        forearm.visible = false;
         continue;
       }
       const pulse = 1 + Math.sin(incoming.progress * Math.PI) * 0.12;
-      ring.position.set(opponentX, zoneHeight(incoming.zone), 3.92 - incoming.progress * 0.55);
+      const targetX = opponentX + zoneOffsetX(incoming.zone);
+      const targetY = zoneHeight(incoming.zone);
+      ring.position.set(targetX, targetY, 3.92 - incoming.progress * 0.55);
       ring.scale.setScalar(pulse + incoming.progress * 0.3);
       ring.material.color.set(incoming.fromSelf ? SELF : FOE);
       ring.material.opacity = 0.24 + incoming.progress * 0.64;
       ring.rotation.z = incoming.kind === 'slash' ? incoming.progress * Math.PI : 0;
 
-      const targetY = zoneHeight(incoming.zone);
+      // The attack is an articulated arm that grows out from the player's
+      // actual lead glove and reaches the opponent's target line. Incoming
+      // punches use the reverse path, so both players see contact rather than
+      // a detached shot flying through the ring.
       if (incoming.fromSelf) {
-        this.ghostFrom.set(0.25 + this.selfHands.position.x, -0.25, 0.38);
-        this.ghostTo.set(opponentX, targetY, 4.08);
+        this.camera.updateMatrixWorld(true);
+        this.rightHand.getWorldPosition(this.ghostFrom);
+        this.ghostTo.set(targetX, targetY, 4.08);
         ghost.material.color.set(SELF);
       } else {
-        this.ghostFrom.set(opponentX, targetY, 4.08);
-        this.ghostTo.set(0, targetY, 0.28);
+        this.ghostFrom.set(targetX, targetY, 4.08);
+        this.ghostTo.set(this.camera.position.x, targetY, 0.7);
         ghost.material.color.set(FOE);
       }
-      ghost.position.lerpVectors(this.ghostFrom, this.ghostTo, incoming.progress);
-      ghost.scale.setScalar(0.8 + incoming.progress * 0.45);
-      ghost.material.opacity = incoming.progress < 0.98 ? 0.72 : 0;
+      const travel = 1 - Math.pow(1 - incoming.progress, 1.35);
+      this.punchCurrent.lerpVectors(this.ghostFrom, this.ghostTo, travel);
+      placeBetween(forearm, this.ghostFrom, this.punchCurrent, 0.09);
+      forearm.material.color.set(incoming.fromSelf ? SELF : FOE);
+      forearm.material.opacity = incoming.progress < 0.98 ? 0.82 : 0;
+      forearm.visible = forearm.material.opacity > 0;
+      ghost.position.copy(this.punchCurrent);
+      ghost.scale.setScalar(0.88 + incoming.progress * 0.28);
+      ghost.material.opacity = incoming.progress < 0.98 ? 0.98 : 0;
+      ghost.visible = ghost.material.opacity > 0;
     }
   }
 

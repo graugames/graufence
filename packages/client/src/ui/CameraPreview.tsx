@@ -16,8 +16,10 @@ import { drawPreview, loadOpenCv } from '../cv/preprocess.js';
 import type { OpenCV } from '../cv/preprocess.js';
 import { PALETTE } from '../render/palette.js';
 
-/** The bones worth drawing: arms, shoulders, hips. Not fingers or feet. */
+/** The joints that make the punch and stance readable in the preview. */
 const BONES: [number, number][] = [
+  [LM.nose, LM.leftShoulder],
+  [LM.nose, LM.rightShoulder],
   [LM.leftShoulder, LM.rightShoulder],
   [LM.leftShoulder, LM.leftElbow],
   [LM.leftElbow, LM.leftWrist],
@@ -26,6 +28,10 @@ const BONES: [number, number][] = [
   [LM.leftShoulder, LM.leftHip],
   [LM.rightShoulder, LM.rightHip],
   [LM.leftHip, LM.rightHip],
+  [LM.leftHip, LM.leftKnee],
+  [LM.leftKnee, LM.leftAnkle],
+  [LM.rightHip, LM.rightKnee],
+  [LM.rightKnee, LM.rightAnkle],
 ];
 
 export interface CameraPreviewProps {

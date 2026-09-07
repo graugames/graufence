@@ -146,6 +146,12 @@ export const GESTURE = {
   thrustForwardRatio: 0.55,
   /** A thrust also wants the body committing — hips/shoulders moving in. */
   thrustBodyAssist: 0.12,
+  /** A punch should finish with a reasonably straight arm, not a waving hand. */
+  punchMinStraightness: 0.54,
+  /** Extension contribution used when MediaPipe depth is noisy. */
+  punchExtensionAssist: 0.55,
+  /** Forward speed below this re-arms the next punch cycle. */
+  punchResetSpeed: 0.2,
   /** Wrist lateral speed (body-widths/sec) that reads as a slash. */
   slashWristSpeed: 2.4,
   /** Lateral share of the motion required to call it a slash, not a thrust. */

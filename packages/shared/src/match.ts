@@ -53,6 +53,22 @@ export interface PoseSnapshot {
   /** Off elbow position, body units. Optional for old room messages. */
   oex?: number;
   oey?: number;
+  /** Head centre, shoulder centre, and hip centre. Optional for old rooms. */
+  hx?: number;
+  hy?: number;
+  sx?: number;
+  sy?: number;
+  px?: number;
+  py?: number;
+  /** Knees and ankles keep the remote stance connected to the camera pose. */
+  lkx?: number;
+  lky?: number;
+  rkx?: number;
+  rky?: number;
+  lax?: number;
+  lay?: number;
+  rax?: number;
+  ray?: number;
   /** Tracking confidence 0..1. */
   c: number;
 }

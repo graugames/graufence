@@ -34,6 +34,10 @@ export const LM = {
   rightWrist: 16,
   leftHip: 23,
   rightHip: 24,
+  leftKnee: 25,
+  rightKnee: 26,
+  leftAnkle: 27,
+  rightAnkle: 28,
 } as const;
 
 /** One landmark as MediaPipe reports it: image-normalized x/y, relative z. */
@@ -87,6 +91,12 @@ export interface PoseFrame {
   /** Off elbow, when visible - keeps the remote arm's bend faithful. */
   offElbow: Vec2 | null;
 
+  /** Lower-body points used to keep the remote fighter's stance connected. */
+  leftKnee: Vec2 | null;
+  rightKnee: Vec2 | null;
+  leftAnkle: Vec2 | null;
+  rightAnkle: Vec2 | null;
+
   /** Body reference points. */
   hips: Vec2;
   shoulders: Vec2;
@@ -97,6 +107,10 @@ export interface PoseFrame {
    * Negative means "toward the camera" - that is what a thrust looks like.
    */
   wristDepth: number;
+
+  /** Shape of the tracked arm, useful for separating a punch from a reach. */
+  armExtension: number;
+  armStraightness: number;
 
   /** Raw shoulder width this frame, before normalization. Diagnostics only. */
   rawScale: number;
@@ -118,10 +132,16 @@ export function emptyPoseFrame(t: number, handedness: Handedness): PoseFrame {
     shoulder: { x: 0, y: 0 },
     offWrist: null,
     offElbow: null,
+    leftKnee: null,
+    rightKnee: null,
+    leftAnkle: null,
+    rightAnkle: null,
     hips: { x: 0, y: 0 },
     shoulders: { x: 0, y: -1 },
     head: { x: 0, y: -1.4 },
     wristDepth: 0,
+    armExtension: 0,
+    armStraightness: 0,
     rawScale: 0,
   };
 }
@@ -255,6 +275,10 @@ export class PoseNormalizer {
     const leftHipL = landmarks[LM.leftHip];
     const rightHipL = landmarks[LM.rightHip];
     const noseL = landmarks[LM.nose];
+    const leftKneeL = landmarks[LM.leftKnee];
+    const rightKneeL = landmarks[LM.rightKnee];
+    const leftAnkleL = landmarks[LM.leftAnkle];
+    const rightAnkleL = landmarks[LM.rightAnkle];
 
     if (
       !wristL || !elbowL || !shoulderL || !otherShoulderL || !leftHipL || !rightHipL
@@ -273,6 +297,11 @@ export class PoseNormalizer {
       vis(leftHipL),
       vis(rightHipL),
     ];
+    // The off arm and head are not required to keep playing, but when they are
+    // present they are useful confidence evidence for the articulated avatar.
+    if (offWristL) visScores.push(vis(offWristL));
+    if (offElbowL) visScores.push(vis(offElbowL));
+    if (noseL) visScores.push(vis(noseL));
     const confidence = clamp(
       visScores.reduce((a, b) => a + b, 0) / visScores.length,
       0,
@@ -313,6 +342,16 @@ export class PoseNormalizer {
         ? this.smooth('offElbow', this.toBody(pt(offElbowL)), t)
         : null;
 
+    const optionalPoint = (key: string, landmark: Landmark | undefined): Vec2 | null =>
+      landmark && vis(landmark) >= POSE.minLandmarkConfidence
+        ? this.smooth(key, this.toBody(pt(landmark)), t)
+        : null;
+
+    const leftKnee = optionalPoint('leftKnee', leftKneeL);
+    const rightKnee = optionalPoint('rightKnee', rightKneeL);
+    const leftAnkle = optionalPoint('leftAnkle', leftAnkleL);
+    const rightAnkle = optionalPoint('rightAnkle', rightAnkleL);
+
     const head =
       noseL && vis(noseL) >= POSE.minLandmarkConfidence
         ? this.smooth('head', this.toBody(pt(noseL)), t)
@@ -326,6 +365,11 @@ export class PoseNormalizer {
         ? ((wristL.z ?? 0) - (shoulderL.z ?? 0)) / this.calibration.scale
         : 0;
 
+    const upperArm = distance(shoulder, elbow);
+    const forearm = distance(elbow, wrist);
+    const armReach = distance(shoulder, wrist);
+    const armLength = Math.max(upperArm + forearm, 1e-3);
+
     return {
       t,
       handedness,
@@ -336,10 +380,16 @@ export class PoseNormalizer {
       shoulder,
       offWrist,
       offElbow,
+      leftKnee,
+      rightKnee,
+      leftAnkle,
+      rightAnkle,
       hips,
       shoulders,
       head,
       wristDepth: this.smoothDepth(rawDepth),
+      armExtension: clamp(armReach / armLength, 0, 1),
+      armStraightness: clamp(armReach / armLength, 0, 1),
       rawScale,
     };
   }

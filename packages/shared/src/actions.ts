@@ -127,6 +127,8 @@ interface Sample {
   wrist: Vec2;
   hips: Vec2;
   depth: number;
+  armExtension: number;
+  armStraightness: number;
 }
 
 const HISTORY = 8;
@@ -147,6 +149,8 @@ export class ActionDetector {
   /** Guard has to be *held*: this is when the blade last entered its sector. */
   private guardSince = 0;
   private guardCandidate: HitZone | null = null;
+  /** A straight punch must reset before another one can be recognized. */
+  private punchArmed = true;
   private sensitivity: number;
 
   state: DetectorState;
@@ -177,6 +181,7 @@ export class ActionDetector {
     this.lowConfidenceFrames = 0;
     this.trackingSince = 0;
     this.guardCandidate = null;
+    this.punchArmed = true;
     for (const k of Object.keys(this.lastFire) as DetectedAction['kind'][]) {
       this.lastFire[k] = -Infinity;
     }
@@ -252,6 +257,7 @@ export class ActionDetector {
       this.history.length = 0;
       this.trackingSince = 0;
       this.guardCandidate = null;
+      this.punchArmed = true;
       this.state = {
         ...this.state,
         confidence: frame.confidence,
@@ -279,13 +285,21 @@ export class ActionDetector {
       wrist: frame.wrist,
       hips: frame.hips,
       depth: frame.wristDepth,
+      armExtension: frame.armExtension,
+      armStraightness: frame.armStraightness,
     });
     if (this.history.length > HISTORY) this.history.shift();
 
     const vx = this.velocity((s) => s.wrist.x);
     const vy = this.velocity((s) => s.wrist.y);
     // wristDepth is negative toward the camera, so a *decrease* is forward.
-    const forwardSpeed = -this.velocity((s) => s.depth);
+    // A projected arm getting longer is a useful secondary signal when the
+    // model's z estimate jitters. It is deliberately an assist, not a second
+    // attack path: a lateral reach still has to be fast and mostly forward.
+    const depthForwardSpeed = -this.velocity((s) => s.depth);
+    const extensionSpeed = this.velocity((s) => s.armExtension);
+    const forwardSpeed =
+      depthForwardSpeed + Math.max(0, extensionSpeed) * GESTURE.punchExtensionAssist;
     const hipVx = this.velocity((s) => s.hips.x);
     const hipOffset = frame.hips.x;
 
@@ -318,16 +332,24 @@ export class ActionDetector {
     // reaching out to adjust the webcam.
     const forwardRatio = total > 1e-3 ? Math.abs(forwardSpeed) / total : 0;
     const bodyCommit =
-      Math.abs(this.velocity((s) => s.hips.y, 200)) +
-      Math.max(0, -this.velocity((s) => s.depth, 200)) * 0.5;
+      Math.max(0, extensionSpeed) * GESTURE.punchExtensionAssist +
+      Math.max(0, depthForwardSpeed) * 0.5;
+
+    if (!this.punchArmed && forwardSpeed <= GESTURE.punchResetSpeed) {
+      this.punchArmed = true;
+    }
 
     if (
       forwardSpeed >= GESTURE.thrustWristSpeed * k &&
       forwardRatio >= GESTURE.thrustForwardRatio &&
       bodyCommit >= GESTURE.thrustBodyAssist * k &&
+      (frame.armStraightness >= GESTURE.punchMinStraightness ||
+        forwardSpeed >= GESTURE.thrustWristSpeed * k * 1.15) &&
+      this.punchArmed &&
       this.canFire('thrust', t)
     ) {
       this.fire({ kind: 'thrust', t, zone: punchZone, confidence: frame.confidence }, out);
+      this.punchArmed = false;
     }
 
     // ---- slash -------------------------------------------------------------
