@@ -33,7 +33,7 @@ const CDN_WASM_PATH = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10
 /**
  * The pose model. Defaults to Google's hosted copy of pose_landmarker_lite -
  * the smallest of the three, and the right trade here: the game needs joint
- * positions at 25 fps, not millimetre accuracy.
+ * positions at 30 fps, not millimetre accuracy.
  *
  * Set VITE_POSE_MODEL_URL (and run `npm run fetch:model`) to self-host it.
  */
@@ -42,7 +42,7 @@ const MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 
 /** Inference cap. Rendering runs at 60; the model does not need to. */
-const DETECT_INTERVAL_MS = 1000 / 25;
+const DETECT_INTERVAL_MS = 1000 / 30;
 
 export type TrackerStatus = string;
 
@@ -133,8 +133,10 @@ export class PoseTracker {
       // body. The detector still caps inference separately, so this improves
       // landmark quality without turning the render loop into a camera loop.
       video: {
-        width: { ideal: 960, max: 1280 },
-        height: { ideal: 720, max: 720 },
+        // 640x480 is enough for normalized joints and leaves the CPU/GPU room
+        // needed to keep the boxing loop responsive on ordinary laptops.
+        width: { ideal: 640, max: 960 },
+        height: { ideal: 480, max: 720 },
         frameRate: { ideal: 30, max: 30 },
         facingMode: 'user',
       },

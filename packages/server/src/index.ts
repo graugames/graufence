@@ -203,6 +203,16 @@ function handleMessage(session: Session, raw: RawData): void {
       return;
     }
 
+    case 'customize': {
+      // Appearance is client-owned, but still bounded and sanitized by the
+      // shared parser before it reaches the room. Broadcast it immediately so
+      // both lobby previews and the in-ring model agree.
+      room.setCustomization(slot, msg.customization, now);
+      rooms.broadcastLobby(code);
+      rooms.broadcastState(code, true);
+      return;
+    }
+
     case 'pose': {
       // Cosmetic for the opponent's avatar, authoritative only for the guard
       // line. Note what is *not* here: no position the server trusts for hit

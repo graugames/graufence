@@ -21,6 +21,7 @@ import { HIT_ZONES } from './actions.js';
 import type { HitResult } from './combat.js';
 import type { MatchPhase, MatchEvent, PoseSnapshot, Slot } from './match.js';
 import { PROTOCOL_VERSION } from './constants.js';
+import type { CharacterCustomization } from './character.js';
 
 // PROTOCOL_VERSION itself is re-exported from ./constants.js by the barrel;
 // it is imported here only to stamp and check outgoing/incoming handshakes.
@@ -53,8 +54,13 @@ export interface ReadyMessage {
   ready: boolean;
 }
 
+export interface CustomizeMessage {
+  type: 'customize';
+  customization: CharacterCustomization;
+}
+
 /**
- * The high-rate channel: pose plus current guard, ~20/s.
+ * The high-rate channel: pose plus current guard, ~30/s.
  * Purely cosmetic on the receiving client except for `guard`, which the server
  * records as the defender's posture for the next attack that lands.
  */
@@ -93,6 +99,7 @@ export type ClientMessage =
   | JoinRoomMessage
   | RejoinMessage
   | ReadyMessage
+  | CustomizeMessage
   | PoseMessage
   | ActionMessage
   | RematchMessage
@@ -106,6 +113,7 @@ export type ClientMessageType = ClientMessage['type'];
 export interface LobbyPlayer {
   slot: Slot;
   name: string;
+  customization: CharacterCustomization;
   ready: boolean;
   connected: boolean;
   rematchWanted: boolean;
@@ -132,6 +140,7 @@ export interface LobbyMessage {
 export interface PlayerSnapshot {
   slot: Slot;
   name: string;
+  customization: CharacterCustomization;
   connected: boolean;
   health: number;
   stamina: number;
@@ -361,6 +370,30 @@ export function parseClientMessage(raw: unknown, maxBytes = 4096): ParseResult {
     case 'ready': {
       if (typeof data['ready'] !== 'boolean') return fail('bad_message', 'ready must be boolean');
       return { ok: true, message: { type: 'ready', ready: data['ready'] } };
+    }
+
+    case 'customize': {
+      const raw = data['customization'];
+      if (!isObject(raw)) return fail('bad_message', 'customization must be an object');
+      const fields = ['skinTone', 'height', 'build', 'hair', 'gloves'] as const;
+      for (const field of fields) {
+        if (!numberInRange(raw[field], 0, 1)) {
+          return fail('bad_message', `customization ${field} must be between 0 and 1`);
+        }
+      }
+      return {
+        ok: true,
+        message: {
+          type: 'customize',
+          customization: {
+            skinTone: raw.skinTone as number,
+            height: raw.height as number,
+            build: raw.build as number,
+            hair: raw.hair as number,
+            gloves: raw.gloves as number,
+          },
+        },
+      };
     }
 
     case 'pose': {

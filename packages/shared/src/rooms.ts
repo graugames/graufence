@@ -13,6 +13,8 @@ import { MatchEngine } from './match.js';
 import type { MatchEvent, PoseSnapshot, Slot } from './match.js';
 import type { HitZone } from './actions.js';
 import type { LobbyPlayer, PlayerSnapshot, StateMessage } from './protocol.js';
+import type { CharacterCustomization } from './character.js';
+import { DEFAULT_CHARACTER, normalizeCharacter } from './character.js';
 import { NET } from './constants.js';
 
 export interface Seat {
@@ -20,6 +22,7 @@ export interface Seat {
   /** Stable id for this player within the room. */
   id: string;
   name: string;
+  customization: CharacterCustomization;
   /** Secret that lets the same person reclaim the seat after a drop. */
   token: string;
   connected: boolean;
@@ -116,6 +119,7 @@ export class Room {
       slot: slot as Slot,
       id: `p${slot}-${generateToken(this.rng).slice(0, 6)}`,
       name,
+      customization: { ...DEFAULT_CHARACTER },
       token: generateToken(this.rng),
       connected: true,
       disconnectedAt: null,
@@ -133,8 +137,8 @@ export class Room {
       // cannot inherit the previous occupant's id, name, ready state, score,
       // or match phase.
       this.engine = new MatchEngine(
-        { id: a.id, name: a.name },
-        { id: b.id, name: b.name },
+        { id: a.id, name: a.name, customization: a.customization },
+        { id: b.id, name: b.name, customization: b.customization },
         now,
       );
     }
@@ -213,6 +217,14 @@ export class Room {
     e.setDefence(slot, guard, pose.a);
   }
 
+  setCustomization(slot: Slot, customization: CharacterCustomization, now: number): void {
+    const seat = this.seats[slot];
+    if (!seat) return;
+    seat.customization = normalizeCharacter(customization);
+    this.engine?.setCustomization(slot, seat.customization);
+    this.touch(now);
+  }
+
   tick(now: number): MatchEvent[] {
     return this.engine?.tick(now) ?? [];
   }
@@ -224,6 +236,7 @@ export class Room {
       .map((s) => ({
         slot: s.slot,
         name: s.name,
+        customization: s.customization,
         connected: s.connected,
         ready: engine?.state.players[s.slot].ready ?? false,
         rematchWanted: engine?.state.players[s.slot].rematchWanted ?? false,
@@ -240,6 +253,7 @@ export class Room {
       return {
         slot,
         name: p.name,
+        customization: p.customization,
         connected: p.connected,
         health: Math.round(p.health),
         stamina: Math.round(p.stamina),

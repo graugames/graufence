@@ -48,12 +48,12 @@ export const STAMINA = {
 // Seconds. Enforced identically on client (for feedback) and server (for truth).
 
 export const COOLDOWN = {
-  thrust: 0.65,
-  slash: 0.55,
+  thrust: 0.48,
+  slash: 0.52,
   dodge: 1.1,
   parry: 0.5,
   /** Any attack blocks any other attack for this long (global anti-spam). */
-  globalAttack: 0.4,
+  globalAttack: 0.28,
 } as const;
 
 // -------------------------------------------------------------------- combat
@@ -64,8 +64,9 @@ export const COOLDOWN = {
  * defender can parry, dodge or reposition their guard.
  */
 export const TIMING = {
-  thrustWindupSeconds: 0.26,
-  slashWindupSeconds: 0.32,
+  /** The hand reaches the target quickly; defence still gets a readable cue. */
+  thrustWindupSeconds: 0.16,
+  slashWindupSeconds: 0.22,
   /** A parry counts if it fires within this many seconds of the landing. */
   parryWindowSeconds: 0.18,
   /** A tighter window inside the above scores "Perfect Parry" + riposte. */
@@ -100,11 +101,11 @@ export const DAMAGE = {
 
 export const NET = {
   /** Server -> client authoritative state broadcasts per second. */
-  stateHz: 20,
+  stateHz: 30,
   /** Client -> server pose updates per second. */
-  poseHz: 20,
+  poseHz: 30,
   /** Server simulation ticks per second. */
-  tickHz: 30,
+  tickHz: 60,
   /** Heartbeat interval; a socket that misses two is considered dead. */
   heartbeatSeconds: 5,
   /** Room code alphabet — no O/0/I/1, which people mistype over voice chat. */
@@ -127,12 +128,12 @@ export const POSE = {
   /** Sword length as a multiple of the forearm (elbow -> wrist) length. */
   swordExtension: 2.6,
   /** 1-Euro filter defaults for landmark smoothing. */
-  filterMinCutoff: 1.6,
-  filterBeta: 0.05,
+  filterMinCutoff: 3.2,
+  filterBeta: 0.1,
   filterDCutoff: 1.0,
   /** Looser filtering for hips/shoulders, which barely jitter to begin with. */
-  steadyFilterMinCutoff: 4.5,
-  steadyFilterBeta: 0.2,
+  steadyFilterMinCutoff: 6,
+  steadyFilterBeta: 0.35,
   /** Frames of good tracking required before any gesture may fire. */
   warmupFrames: 3,
   /** ...and milliseconds of it, so a burst of frames cannot skip the warmup. */
@@ -141,11 +142,11 @@ export const POSE = {
 
 export const GESTURE = {
   /** Wrist forward speed (body-widths/sec) that reads as a thrust. */
-  thrustWristSpeed: 1.9,
+  thrustWristSpeed: 1.2,
   /** How much of that speed must be along the "forward" (toward camera) axis. */
-  thrustForwardRatio: 0.55,
+  thrustForwardRatio: 0.42,
   /** A thrust also wants the body committing — hips/shoulders moving in. */
-  thrustBodyAssist: 0.12,
+  thrustBodyAssist: 0.04,
   /** A punch should finish with a reasonably straight arm, not a waving hand. */
   punchMinStraightness: 0.54,
   /** Extension contribution used when MediaPipe depth is noisy. */
@@ -153,9 +154,9 @@ export const GESTURE = {
   /** Forward speed below this re-arms the next punch cycle. */
   punchResetSpeed: 0.2,
   /** Wrist lateral speed (body-widths/sec) that reads as a slash. */
-  slashWristSpeed: 2.4,
+  slashWristSpeed: 1.75,
   /** Lateral share of the motion required to call it a slash, not a thrust. */
-  slashLateralRatio: 0.6,
+  slashLateralRatio: 0.5,
   /** Hip lateral displacement from calibrated centre that reads as a dodge. */
   dodgeHipOffset: 0.28,
   /** Hip lateral speed that reads as a dodge. */

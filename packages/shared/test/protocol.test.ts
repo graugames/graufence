@@ -216,6 +216,26 @@ describe('parseClientMessage - rooms', () => {
   });
 });
 
+describe('parseClientMessage - character customization', () => {
+  const customization = { skinTone: 0.75, height: 0.2, build: 0.9, hair: 1, gloves: 0.5 };
+
+  it('accepts a bounded loadout', () => {
+    expect(
+      parseClientMessage(frame({ type: 'customize', customization })),
+    ).toMatchObject({ ok: true, message: { customization } });
+  });
+
+  it('rejects missing, infinite, and out-of-range appearance values', () => {
+    expect(parseClientMessage(frame({ type: 'customize' })).ok).toBe(false);
+    expect(
+      parseClientMessage(frame({ type: 'customize', customization: { ...customization, build: 2 } })).ok,
+    ).toBe(false);
+    expect(
+      parseClientMessage(frame({ type: 'customize', customization: { ...customization, hair: Infinity } })).ok,
+    ).toBe(false);
+  });
+});
+
 describe('sanitizeName', () => {
   it('falls back to a default for empty or non-string input', () => {
     expect(sanitizeName('')).toBe('Boxer');

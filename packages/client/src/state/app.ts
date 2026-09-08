@@ -9,13 +9,14 @@ import { createStore, useStoreValue } from './store.js';
 import type { Store } from './store.js';
 import type {
   Calibration,
+  CharacterCustomization,
   Handedness,
   HitZone,
   LobbyPlayer,
   MatchPhase,
   Slot,
 } from '@graufence/shared';
-import { DEFAULT_CALIBRATION } from '@graufence/shared';
+import { DEFAULT_CALIBRATION, DEFAULT_CHARACTER } from '@graufence/shared';
 
 export type Screen =
   | 'menu'
@@ -54,6 +55,7 @@ export interface AppState {
   controls: ControlMode;
   handedness: Handedness;
   playerName: string;
+  customization: CharacterCustomization;
 
   calibration: Calibration;
   calibrated: boolean;
@@ -96,6 +98,7 @@ const initial: AppState = {
   controls: params.get('keys') === '1' ? 'keyboard' : 'camera',
   handedness: 'right',
   playerName: '',
+  customization: { ...DEFAULT_CHARACTER },
 
   calibration: { ...DEFAULT_CALIBRATION },
   calibrated: false,

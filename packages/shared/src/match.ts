@@ -23,6 +23,8 @@ import {
   windupSeconds,
 } from './combat.js';
 import { MATCH, TIMING } from './constants.js';
+import type { CharacterCustomization } from './character.js';
+import { normalizeCharacter } from './character.js';
 import { clamp } from './vector.js';
 
 export type Slot = 0 | 1;
@@ -77,6 +79,7 @@ export interface PlayerState {
   slot: Slot;
   id: string;
   name: string;
+  customization: CharacterCustomization;
   connected: boolean;
   ready: boolean;
   rematchWanted: boolean;
@@ -139,6 +142,7 @@ export type MatchEvent =
 export interface PlayerSeed {
   id: string;
   name: string;
+  customization?: CharacterCustomization;
 }
 
 function makePlayer(slot: Slot, seed: PlayerSeed): PlayerState {
@@ -146,6 +150,7 @@ function makePlayer(slot: Slot, seed: PlayerSeed): PlayerState {
     slot,
     id: seed.id,
     name: seed.name,
+    customization: normalizeCharacter(seed.customization),
     connected: true,
     ready: false,
     rematchWanted: false,
@@ -281,6 +286,14 @@ export class MatchEngine {
 
   setPose(slot: Slot, pose: PoseSnapshot): void {
     this.player(slot).pose = pose;
+  }
+
+  setCustomization(slot: Slot, customization: CharacterCustomization): void {
+    const p = this.player(slot);
+    const next = normalizeCharacter(customization);
+    if (JSON.stringify(p.customization) === JSON.stringify(next)) return;
+    p.customization = next;
+    this.bump();
   }
 
   // ----------------------------------------------------------- discrete acts

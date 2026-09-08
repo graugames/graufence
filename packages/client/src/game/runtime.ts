@@ -24,6 +24,7 @@
 
 import {
   ActionDetector,
+  DEFAULT_CHARACTER,
   MatchEngine,
   PoseNormalizer,
   MATCH,
@@ -85,6 +86,7 @@ export const debugStore = createStore<DebugSnapshot>({
 /** Low-frequency HUD data; the WebGL scene itself never asks React to render. */
 const initialHudFighter = (isSelf: boolean): FighterView => ({
   name: isSelf ? 'You' : 'Opponent',
+  customization: { ...DEFAULT_CHARACTER },
   side: isSelf ? -1 : 1,
   isSelf,
   health: MATCH.startingHealth,
@@ -108,6 +110,9 @@ const initialHudFighter = (isSelf: boolean): FighterView => ({
   rightAnkle: { x: 0.4, y: 1.65 },
   confidence: 1,
   lungeProgress: 0,
+  attackProgress: 0,
+  attackZone: null,
+  attackKind: null,
 });
 
 export const arenaHudStore = createStore<ArenaView>({
@@ -157,6 +162,11 @@ export class GameRuntime {
   /** Local lunge animation, decayed each frame. */
   private lungeSelf = 0;
   private lungeFoe = 0;
+  private selfAttackZone: HitZone | null = null;
+  private selfAttackKind: 'thrust' | 'slash' | null = null;
+  private foeAttackZone: HitZone | null = null;
+  private foeAttackKind: 'thrust' | 'slash' | null = null;
+  private optimisticAttackAt = 0;
   private previousFrameAt = 0;
 
   constructor() {
@@ -258,7 +268,11 @@ export class GameRuntime {
     this.snapshot = null;
     this.seenEventKeys.clear();
     this.localEngine = new MatchEngine(
-      { id: 'you', name: appStore.get().playerName || 'Boxer' },
+      {
+        id: 'you',
+        name: appStore.get().playerName || 'Boxer',
+        customization: appStore.get().customization,
+      },
       { id: 'bot', name: 'Sparring Bot' },
       now,
     );
@@ -268,6 +282,11 @@ export class GameRuntime {
     this.localEngine.startCountdown(now);
     this.lungeSelf = 0;
     this.lungeFoe = 0;
+    this.selfAttackZone = null;
+    this.selfAttackKind = null;
+    this.foeAttackZone = null;
+    this.foeAttackKind = null;
+    this.optimisticAttackAt = 0;
     this.previousFrameAt = 0;
     appStore.set({
       mode: 'local',
@@ -433,7 +452,12 @@ export class GameRuntime {
     this.lastAction = action.kind;
     this.lastActionAt = t;
 
-    if (action.kind === 'thrust' || action.kind === 'slash') this.lungeSelf = 1;
+    if (action.kind === 'thrust' || action.kind === 'slash') {
+      this.lungeSelf = 1;
+      this.selfAttackZone = action.zone ?? 'torso';
+      this.selfAttackKind = action.kind;
+      this.optimisticAttackAt = t;
+    }
 
     if (this.localEngine) {
       const events = this.localEngine.submitAction(
@@ -567,8 +591,15 @@ export class GameRuntime {
           break;
 
         case 'attack_thrown': {
-          if (event.slot === this.slot) this.lungeSelf = 1;
-          else this.lungeFoe = 1;
+          if (event.slot === this.slot) {
+            this.lungeSelf = 1;
+            this.selfAttackZone = event.zone;
+            this.selfAttackKind = event.kind;
+          } else {
+            this.lungeFoe = 1;
+            this.foeAttackZone = event.zone;
+            this.foeAttackKind = event.kind;
+          }
           break;
         }
 
@@ -697,6 +728,7 @@ export class GameRuntime {
 
     const blank = (isSelf: boolean, side: -1 | 1): FighterView => ({
       name: isSelf ? 'You' : 'Opponent',
+      customization: isSelf ? { ...app.customization } : { ...DEFAULT_CHARACTER },
       side,
       isSelf,
       health: MATCH.startingHealth,
@@ -720,6 +752,9 @@ export class GameRuntime {
       rightAnkle: isSelf ? pose.rightAnkle : { x: 0.4, y: 1.65 },
       confidence: isSelf ? confidence : 1,
       lungeProgress: isSelf ? this.lungeSelf : this.lungeFoe,
+      attackProgress: 0,
+      attackZone: isSelf ? this.selfAttackZone : this.foeAttackZone,
+      attackKind: isSelf ? this.selfAttackKind : this.foeAttackKind,
     });
 
     let me = blank(true, -1);
@@ -739,6 +774,7 @@ export class GameRuntime {
       me = {
         ...me,
         name: mine.name,
+        customization: mine.customization,
         health: mine.health,
         stamina: mine.stamina,
         roundsWon: mine.roundsWon,
@@ -747,6 +783,7 @@ export class GameRuntime {
       them = {
         ...them,
         name: theirs.name,
+        customization: theirs.customization,
         health: theirs.health,
         stamina: theirs.stamina,
         roundsWon: theirs.roundsWon,
@@ -779,6 +816,7 @@ export class GameRuntime {
       me = {
         ...me,
         name: mine.name,
+        customization: mine.customization,
         health: mine.health,
         stamina: mine.stamina,
         roundsWon: mine.roundsWon,
@@ -788,6 +826,7 @@ export class GameRuntime {
       them = {
         ...them,
         name: theirs.name,
+        customization: theirs.customization,
         health: theirs.health,
         stamina: theirs.stamina,
         roundsWon: theirs.roundsWon,
@@ -856,6 +895,31 @@ export class GameRuntime {
         };
       });
     }
+
+    // The authoritative pending list drives the exact contact animation. A
+    // short local envelope fills the network gap between the button/gesture
+    // and the first server snapshot, so a punch never waits for a packet to
+    // become visible.
+    const pendingAttack = (fromSelf: boolean): IncomingView | undefined =>
+      incoming
+        .filter((attack) => attack.fromSelf === fromSelf)
+        .sort((a, b) => b.progress - a.progress)[0];
+    const optimisticWindow =
+      this.selfAttackKind === 'slash'
+        ? TIMING.slashWindupSeconds * 1000
+        : TIMING.thrustWindupSeconds * 1000;
+    const optimisticProgress =
+      this.optimisticAttackAt > 0
+        ? clamp((t - this.optimisticAttackAt) / Math.max(1, optimisticWindow), 0, 1)
+        : 0;
+    const selfAttack = pendingAttack(true);
+    const foeAttack = pendingAttack(false);
+    me.attackProgress = selfAttack?.progress ?? (optimisticProgress < 1 ? optimisticProgress : 0);
+    me.attackZone = selfAttack?.zone ?? (me.attackProgress > 0 ? this.selfAttackZone : null);
+    me.attackKind = selfAttack?.kind ?? (me.attackProgress > 0 ? this.selfAttackKind : null);
+    them.attackProgress = foeAttack?.progress ?? (this.lungeFoe > 0 ? this.lungeFoe : 0);
+    them.attackZone = foeAttack?.zone ?? (them.attackProgress > 0 ? this.foeAttackZone : null);
+    them.attackKind = foeAttack?.kind ?? (them.attackProgress > 0 ? this.foeAttackKind : null);
 
     return {
       me,

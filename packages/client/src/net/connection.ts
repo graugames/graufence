@@ -10,17 +10,18 @@
  *     shown in the HUD and the clock offset used to convert the server's
  *     `landsAt` timestamps into local time - without which a telegraphed
  *     attack would render at the wrong moment on a laggy connection.
- *  3. Stay cheap. Pose goes out at 20 Hz and is rounded to two decimals; the
+ *  3. Stay cheap. Pose goes out at 30 Hz and is rounded to two decimals; the
  *     whole outbound stream is a couple of kB/s.
  */
 
 import type {
+  CharacterCustomization,
   ClientMessage,
   HitZone,
   PoseSnapshot,
   ServerMessage,
 } from '@graufence/shared';
-import { compactPose, NET, PROTOCOL_VERSION } from '@graufence/shared';
+import { compactPose, DEFAULT_CHARACTER, NET, PROTOCOL_VERSION } from '@graufence/shared';
 
 export type ConnectionListener = (message: ServerMessage) => void;
 export type StatusListener = (
@@ -67,6 +68,7 @@ export class Connection {
   /** Latest pose, sampled by the send timer rather than sent per frame. */
   private latestPose: { pose: PoseSnapshot; guard: HitZone | null } | null = null;
   private lastPoseSentAt = 0;
+  private latestCustomization: CharacterCustomization = { ...DEFAULT_CHARACTER };
 
   private actionSeq = 0;
 
@@ -157,6 +159,9 @@ export class Connection {
       if (msg.type === 'joined') {
         this.roomCode = msg.code;
         this.token = msg.token;
+        // A customization may have been chosen before the socket finished
+        // joining. Send it after the seat exists, and also after reconnects.
+        this.sendNow({ type: 'customize', customization: this.latestCustomization });
       }
       for (const fn of this.listeners) fn(msg);
     });
@@ -197,8 +202,8 @@ export class Connection {
     }, 2000);
     this.sendNow({ type: 'ping', t: Date.now() });
 
-    // Pose is sampled on a timer rather than pushed per frame: the camera runs
-    // at ~25 fps and the renderer at 60, but the opponent only needs 20.
+    // Pose is sampled on a timer rather than pushed per frame: the camera and
+    // renderer stay independent, while the opponent gets a responsive 30 Hz stream.
     this.poseTimer = setInterval(() => {
       const latest = this.latestPose;
       if (!latest) return;
@@ -257,11 +262,18 @@ export class Connection {
     this.send({ type: 'ready', ready });
   }
 
+  setCustomization(customization: CharacterCustomization): void {
+    this.latestCustomization = { ...customization };
+    if (this.roomCode !== null) {
+      this.send({ type: 'customize', customization: this.latestCustomization });
+    }
+  }
+
   requestRematch(): void {
     this.send({ type: 'rematch' });
   }
 
-  /** Latest pose; actually transmitted by the 20 Hz timer. */
+  /** Latest pose; actually transmitted by the 30 Hz timer. */
   pushPose(pose: PoseSnapshot, guard: HitZone | null): void {
     this.latestPose = { pose, guard };
   }

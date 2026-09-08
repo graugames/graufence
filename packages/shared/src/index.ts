@@ -8,6 +8,7 @@
  */
 
 export * from './constants.js';
+export * from './character.js';
 export * from './vector.js';
 export * from './filter.js';
 export * from './pose.js';

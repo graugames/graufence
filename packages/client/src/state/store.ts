@@ -7,7 +7,7 @@
  * times a second for numbers that are being painted onto a canvas anyway.
  *
  * So the split is:
- *   - fast, continuous state (pose, blade, effects, health bars) lives in the
+ *   - fast, continuous state (pose, gloves, effects, health bars) lives in the
  *     runtime and is drawn directly to the canvas, never in React;
  *   - slow, discrete state (which screen, room code, lobby, result) lives here
  *     and re-renders components only when it genuinely changes.

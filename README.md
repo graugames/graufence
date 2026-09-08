@@ -2,8 +2,10 @@
 
 Grau Battle is a playable 1v1 online webcam boxing game. Players throw punches,
 block with either glove, and slip attacks with their hips. The browser mirrors
-the tracked pose into a low-poly ring; the server receives compact pose
-summaries and action intents, never webcam frames or video.
+the tracked pose into a 3-D ring; the server receives compact pose summaries
+and action intents, never webcam frames or video. Before a match, each boxer
+can tune their height, build, skin tone, hair, and glove color; those choices
+are shown on the opponent's character model.
 
 ## Stack
 

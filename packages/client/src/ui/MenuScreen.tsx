@@ -10,10 +10,17 @@ import { useState } from 'react';
 import { appStore, clearLog, useApp } from '../state/app.js';
 import { getRuntime } from '../game/runtime.js';
 import { KEYBOARD_HELP } from '../input/keyboard.js';
+import type { CharacterCustomization } from '@graufence/shared';
+
+const SKIN_COLORS = ['#f4c7a1', '#d79a72', '#b8734f', '#8b5137', '#5a3025'];
+const GLOVE_COLORS = ['#58e7ff', '#f04b4b', '#ffd166', '#f2f5f7'];
+const HAIR_NAMES = ['Bald', 'Cropped', 'Full', 'Curly'];
+const GLOVE_NAMES = ['Cyan', 'Red', 'Gold', 'White'];
 
 export function MenuScreen() {
   const controls = useApp((s) => s.controls);
   const playerName = useApp((s) => s.playerName);
+  const customization = useApp((s) => s.customization);
   const cameraStatus = useApp((s) => s.cameraStatus);
   const cameraError = useApp((s) => s.cameraError);
   const connection = useApp((s) => s.connection);
@@ -24,6 +31,12 @@ export function MenuScreen() {
   const runtime = getRuntime();
 
   const name = playerName.trim() || 'Boxer';
+
+  function updateCustomization(field: keyof CharacterCustomization, value: number) {
+    const next = { ...customization, [field]: value };
+    appStore.set({ customization: next });
+    runtime.connection.setCustomization(next);
+  }
 
   /** Camera mode goes through calibration; keyboard mode skips straight in. */
   async function ensureControls(): Promise<boolean> {
@@ -40,6 +53,7 @@ export function MenuScreen() {
   async function createRoom() {
     if (!(await ensureControls())) return;
     clearLog();
+    runtime.connection.setCustomization(appStore.get().customization);
     appStore.set({ mode: 'online', playerName: name });
     runtime.connection.connect();
     runtime.connection.createRoom(name);
@@ -50,6 +64,7 @@ export function MenuScreen() {
     if (code.length < 4) return;
     if (!(await ensureControls())) return;
     clearLog();
+    runtime.connection.setCustomization(appStore.get().customization);
     appStore.set({ mode: 'online', playerName: name });
     runtime.connection.connect();
     runtime.connection.joinRoom(code, name);
@@ -94,6 +109,54 @@ export function MenuScreen() {
             onChange={(e) => appStore.set({ playerName: e.target.value })}
           />
         </label>
+
+        <section className="character-editor" aria-labelledby="character-editor-title">
+          <div className="character-editor-heading">
+            <div>
+              <span className="eyebrow">FIGHTER LAB</span>
+              <h3 id="character-editor-title">Build your boxer</h3>
+            </div>
+            <div
+              className={`character-preview hair-${Math.round(customization.hair * 3)}`}
+              aria-label="Your customized fighter preview"
+              style={{
+                ['--preview-skin' as string]: SKIN_COLORS[Math.round(customization.skinTone * 4)],
+                ['--preview-glove' as string]: GLOVE_COLORS[Math.round(customization.gloves * 3)],
+                ['--preview-scale' as string]: `${0.88 + customization.height * 0.22}`,
+                ['--preview-build' as string]: `${0.84 + customization.build * 0.32}`,
+              }}
+            >
+              <span className="preview-hair" />
+              <span className="preview-head" />
+              <span className="preview-body" />
+              <span className="preview-glove preview-glove-left" />
+              <span className="preview-glove preview-glove-right" />
+            </div>
+          </div>
+          <p className="hint">Your opponent sees this character in the ring.</p>
+          <div className="character-sliders">
+            <label className="field">
+              <span>Height <output>{customization.height < 0.34 ? 'Short' : customization.height > 0.66 ? 'Tall' : 'Medium'}</output></span>
+              <input type="range" min="0" max="1" step="0.01" value={customization.height} onChange={(e) => updateCustomization('height', Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Build <output>{customization.build < 0.34 ? 'Lean' : customization.build > 0.66 ? 'Power' : 'Athletic'}</output></span>
+              <input type="range" min="0" max="1" step="0.01" value={customization.build} onChange={(e) => updateCustomization('build', Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Skin tone <output>{Math.round(customization.skinTone * 4) + 1}</output></span>
+              <input type="range" min="0" max="1" step="0.25" value={customization.skinTone} onChange={(e) => updateCustomization('skinTone', Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Hair <output>{HAIR_NAMES[Math.round(customization.hair * 3)]}</output></span>
+              <input type="range" min="0" max="1" step="0.333" value={customization.hair} onChange={(e) => updateCustomization('hair', Number(e.target.value))} />
+            </label>
+            <label className="field">
+              <span>Gloves <output>{GLOVE_NAMES[Math.round(customization.gloves * 3)]}</output></span>
+              <input type="range" min="0" max="1" step="0.333" value={customization.gloves} onChange={(e) => updateCustomization('gloves', Number(e.target.value))} />
+            </label>
+          </div>
+        </section>
 
         <fieldset className="field">
           <legend>Controls</legend>
